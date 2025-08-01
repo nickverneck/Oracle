@@ -3,6 +3,42 @@
 Oracle is a containerized AI-powered troubleshooting chatbot system that leverages multiple knowledge retrieval approaches and flexible model serving. The system uses a microservices architecture deployed via Docker Compose.
 
 ## Architecture Overview
+```mermaid
+graph TB
+    subgraph "Client Layer"
+        UI[SvelteKit Frontend]
+        API_CLIENT[API Clients]
+    end
+    
+    subgraph "API Gateway Layer"
+        FASTAPI[FastAPI Backend]
+    end
+    
+    subgraph "Model Serving Layer"
+        VLLM[vLLM + CUDA]
+        OLLAMA[Ollama]
+        GEMINI[Google Gemini API]
+    end
+    
+    subgraph "Knowledge Layer"
+        NEO4J[Neo4j Knowledge Graph]
+        CHROMADB[ChromaDB Vector Store]
+    end
+    
+    subgraph "Storage Layer"
+        VOLUMES[Docker Volumes]
+    end
+    
+    UI --> FASTAPI
+    API_CLIENT --> FASTAPI
+    FASTAPI --> VLLM
+    FASTAPI --> OLLAMA
+    FASTAPI --> GEMINI
+    FASTAPI --> NEO4J
+    FASTAPI --> CHROMADB
+    NEO4J --> VOLUMES
+    CHROMADB --> VOLUMES
+```
 
 - **Backend**: FastAPI with UV package management
 - **Frontend**: SvelteKit 5 with TypeScript
@@ -31,7 +67,9 @@ Oracle is a containerized AI-powered troubleshooting chatbot system that leverag
    ```bash
    # Required: Set secure passwords
    NEO4J_PASSWORD=your_secure_password_here
-   VLLM_API_KEY=your_vllm_api_key
+   
+   # Optional: Change internal API key for vLLM (default: oracle-key)
+   VLLM_API_KEY=oracle-key
    
    # Optional: Add API keys for fallback models
    GOOGLE_API_KEY=your_google_api_key_here
@@ -70,9 +108,13 @@ docker-compose logs -f oracle-frontend
 
 ### Model Serving Priority
 
-1. **vLLM** (Primary): GPU-accelerated inference
-2. **Ollama** (Fallback): CPU/GPU inference via external service
+1. **vLLM** (Primary): Self-hosted GPU-accelerated inference
+   - Uses internal API key for service authentication (configurable)
+   - No external API costs
+2. **Ollama** (Fallback): Self-hosted CPU/GPU inference via external service
+   - Requires separate Ollama installation
 3. **Google Gemini** (Fallback): Cloud API service
+   - Requires Google API key and incurs usage costs
 
 ### Database Configuration
 
