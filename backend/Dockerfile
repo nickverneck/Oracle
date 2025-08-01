@@ -13,8 +13,12 @@ RUN apt-get update && apt-get install -y \
 # Install UV package manager
 RUN pip install uv
 
-# Copy dependency files
-COPY pyproject.toml uv.lock* ./
+# Set environment variables for CPU-only packages
+ENV TORCH_INDEX_URL=https://download.pytorch.org/whl/cpu
+ENV FORCE_CUDA=0
+
+# Copy dependency files and README
+COPY pyproject.toml uv.lock* README.md ./
 
 # Install Python dependencies using UV
 RUN uv sync --frozen
@@ -35,4 +39,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
 # Start the application
-CMD ["uv", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uv", "run", "uvicorn", "oracle.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -21,8 +21,6 @@ services:
         condition: service_healthy
       oracle-chromadb:
         condition: service_healthy
-      oracle-vllm:
-        condition: service_started
     networks:
       - oracle-network
     volumes:
@@ -54,32 +52,32 @@ services:
       - ./frontend:/app
       - frontend-node-modules:/app/node_modules
 
-  oracle-vllm:
-    image: vllm/vllm-openai:latest
-    container_name: oracle-vllm
-    ports:
-      - "${VLLM_PORT:-8001}:8001"
-    environment:
-      - CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0}
-      - VLLM_MODEL=${VLLM_MODEL:-microsoft/DialoGPT-medium}
-      - VLLM_HOST=0.0.0.0
-      - VLLM_PORT=8001
-    command: >
-      --model ${VLLM_MODEL:-microsoft/DialoGPT-medium}
-      --host 0.0.0.0
-      --port 8001
-      --api-key ${VLLM_API_KEY:-oracle-key}
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
-    networks:
-      - oracle-network
-    volumes:
-      - vllm-cache:/root/.cache
+  # oracle-vllm:
+  #   image: vllm/vllm-openai:latest
+  #   container_name: oracle-vllm
+  #   ports:
+  #     - "${VLLM_PORT:-8001}:8001"
+  #   environment:
+  #     - CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0}
+  #     - VLLM_MODEL=${VLLM_MODEL:-microsoft/DialoGPT-medium}
+  #     - VLLM_HOST=0.0.0.0
+  #     - VLLM_PORT=8001
+  #   command: >
+  #     --model ${VLLM_MODEL:-microsoft/DialoGPT-medium}
+  #     --host 0.0.0.0
+  #     --port 8001
+  #     --api-key ${VLLM_API_KEY:-oracle-key}
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - driver: nvidia
+  #             count: 1
+  #             capabilities: [gpu]
+  #   networks:
+  #     - oracle-network
+  #   volumes:
+  #     - vllm-cache:/root/.cache
 
   oracle-neo4j:
     image: neo4j:5.15-community
@@ -91,8 +89,8 @@ services:
       - NEO4J_AUTH=${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-password}
       - NEO4J_PLUGINS=["apoc"]
       - NEO4J_dbms_security_procedures_unrestricted=apoc.*
-      - NEO4J_dbms_memory_heap_initial_size=${NEO4J_HEAP_SIZE:-512m}
-      - NEO4J_dbms_memory_heap_max_size=${NEO4J_HEAP_SIZE:-512m}
+      - NEO4J_dbms_memory_heap_initial__size=${NEO4J_HEAP_SIZE:-512m}
+      - NEO4J_dbms_memory_heap_max__size=${NEO4J_HEAP_SIZE:-512m}
       - NEO4J_dbms_memory_pagecache_size=${NEO4J_PAGECACHE_SIZE:-256m}
     networks:
       - oracle-network
@@ -122,7 +120,7 @@ services:
     volumes:
       - chromadb-data:/chroma/chroma
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/heartbeat')"]
       interval: 30s
       timeout: 10s
       retries: 3

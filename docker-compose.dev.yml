@@ -12,8 +12,9 @@ services:
       - RELOAD=true
     volumes:
       - ./backend:/app
+      - /app/.venv  # Preserve the virtual environment
       - backend-cache:/root/.cache
-    command: ["uv", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    command: ["uv", "run", "uvicorn", "oracle.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
   oracle-frontend:
     build:
@@ -31,12 +32,12 @@ services:
   # Reduce resource requirements for development
   oracle-neo4j:
     environment:
-      - NEO4J_dbms_memory_heap_initial_size=256m
-      - NEO4J_dbms_memory_heap_max_size=256m
+      - NEO4J_dbms_memory_heap_initial__size=256m
+      - NEO4J_dbms_memory_heap_max__size=256m
       - NEO4J_dbms_memory_pagecache_size=128m
 
   # Optional: disable GPU requirements for development if no GPU available
-  oracle-vllm:
-    deploy:
-      resources:
-        reservations: {}  # Remove GPU requirements
+  # oracle-vllm:
+  #   deploy:
+  #     resources:
+  #       reservations: {}  # Remove GPU requirements

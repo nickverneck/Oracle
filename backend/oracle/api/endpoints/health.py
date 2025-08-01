@@ -4,11 +4,12 @@ from datetime import datetime
 from typing import Dict, Any
 
 import structlog
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Depends
 from pydantic import BaseModel
 
 from oracle.core.config import get_settings
 from oracle.services.knowledge import KnowledgeRetrievalService
+from oracle.clients.model_manager import ModelManager
 
 logger = structlog.get_logger(__name__)
 router = APIRouter()
@@ -183,3 +184,109 @@ async def liveness_check() -> Dict[str, str]:
     """
     logger.debug("Liveness check requested")
     return {"status": "alive"}
+
+
+@router.get("/models", response_model=HealthResponse)
+async def model_providers_health() -> HealthResponse:
+    """
+    Check health status of all model providers.
+    
+    This endpoint tests connectivity to vLLM, Ollama, and Gemini APIs
+    and shows which providers are available for fallback.
+    """
+    logger.info("Model providers health check requested")
+    
+    settings = get_settings()
+    
+    # Initialize model manager
+    config = {
+        "vllm": {
+            "base_url": getattr(settings, "VLLM_BASE_URL", "http://localhost:8001"),
+            "api_key": getattr(settings, "VLLM_API_KEY", ""),
+            "model": getattr(settings, "VLLM_MODEL", "microsoft/DialoGPT-medium")
+        },
+        "ollama": {
+            "base_url": getattr(settings, "OLLAMA_BASE_URL", "http://localhost:11434"),
+            "model": getattr(settings, "OLLAMA_MODEL", "llama2")
+        },
+        "gemini": {
+            "api_key": getattr(settings, "GEMINI_API_KEY", ""),
+            "model": getattr(settings, "GEMINI_MODEL", "gemini-pro")
+        },
+        "fallback_order": ["vllm", "ollama", "gemini"]
+    }
+    
+    model_manager = ModelManager(config)
+    services = {}
+    
+    # Check each provider
+    for provider_name in ["vllm", "ollama", "gemini"]:
+        start_time = datetime.utcnow()
+        client = model_manager.clients.get(provider_name)
+        
+        if not client:
+            services[provider_name] = ServiceStatus(
+                status="not_configured",
+                message=f"{provider_name.upper()} client not configured",
+                response_time_ms=0.0
+            )
+            continue
+        
+        try:
+            # Try health check if available
+            if hasattr(client, 'health_check'):
+                is_healthy = await client.health_check()
+                response_time = (datetime.utcnow() - start_time).total_seconds() * 1000
+                
+                if is_healthy:
+                    services[provider_name] = ServiceStatus(
+                        status="healthy",
+                        message=f"{provider_name.upper()} is available",
+                        response_time_ms=response_time
+                    )
+                else:
+                    services[provider_name] = ServiceStatus(
+                        status="unhealthy",
+                        message=f"{provider_name.upper()} health check failed",
+                        response_time_ms=response_time
+                    )
+            else:
+                services[provider_name] = ServiceStatus(
+                    status="configured",
+                    message=f"{provider_name.upper()} client configured but health check not available",
+                    response_time_ms=0.0
+                )
+        except Exception as e:
+            response_time = (datetime.utcnow() - start_time).total_seconds() * 1000
+            services[provider_name] = ServiceStatus(
+                status="error",
+                message=f"{provider_name.upper()} error: {str(e)}",
+                response_time_ms=response_time
+            )
+    
+    # Determine overall status
+    healthy_providers = [name for name, status in services.items() if status.status == "healthy"]
+    configured_providers = [name for name, status in services.items() if status.status in ["healthy", "configured"]]
+    
+    if healthy_providers:
+        overall_status = "healthy"
+        status_message = f"At least one provider available: {', '.join(healthy_providers)}"
+    elif configured_providers:
+        overall_status = "degraded"
+        status_message = f"Providers configured but health unknown: {', '.join(configured_providers)}"
+    else:
+        overall_status = "unhealthy"
+        status_message = "No model providers available"
+    
+    services["overall"] = ServiceStatus(
+        status=overall_status,
+        message=status_message,
+        response_time_ms=0.0
+    )
+    
+    return HealthResponse(
+        status=overall_status,
+        timestamp=datetime.utcnow(),
+        version="0.1.0",
+        services=services
+    )
