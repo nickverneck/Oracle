@@ -156,9 +156,10 @@ class TextProcessor:
 class IngestionService:
     """Main service for document ingestion and processing."""
     
-    def __init__(self):
+    def __init__(self, knowledge_service=None):
         self.parser = DocumentParser()
         self.batch_status: Dict[str, Dict] = {}  # In-memory storage for demo
+        self.knowledge_service = knowledge_service
     
     async def calculate_checksum(self, content: bytes) -> str:
         """Calculate SHA-256 checksum of file content."""
@@ -212,12 +213,53 @@ class IngestionService:
             if processing_options.extract_entities:
                 entities = processor.extract_entities(text_content)
             
-            # Simulate knowledge graph operations
+            # Simulate knowledge graph operations (will be implemented in task 5)
             graph_nodes_added = len(entities) if processing_options.extract_entities else 0
             graph_relationships_added = max(0, len(entities) - 1) if processing_options.extract_entities else 0
             
-            # Simulate vector embeddings creation
-            vector_embeddings_created = len(chunks) if processing_options.create_embeddings else 0
+            # Create vector embeddings using ChromaDB
+            vector_embeddings_created = 0
+            if processing_options.create_embeddings and self.knowledge_service:
+                try:
+                    # Create document metadata
+                    document_metadata = {
+                        "filename": file_info.filename,
+                        "file_type": file_info.content_type,
+                        "file_size": file_info.size,
+                        "checksum": checksum,
+                        "language": processing_options.language,
+                        "processed_at": time.time()
+                    }
+                    
+                    # Generate unique document ID
+                    document_id = f"{checksum}_{file_info.filename}"
+                    
+                    # Add document to vector database
+                    vector_embeddings_created = await self.knowledge_service.add_document_to_vector_db(
+                        text=text_content,
+                        metadata=document_metadata,
+                        document_id=document_id,
+                        chunk_size=processing_options.chunk_size,
+                        chunk_overlap=processing_options.chunk_overlap
+                    )
+                    
+                    logger.info(
+                        "Created vector embeddings",
+                        filename=file_info.filename,
+                        chunks=vector_embeddings_created
+                    )
+                    
+                except Exception as e:
+                    logger.error(
+                        "Failed to create vector embeddings",
+                        filename=file_info.filename,
+                        error=str(e)
+                    )
+                    # Continue processing even if vector embedding fails
+                    vector_embeddings_created = 0
+            elif processing_options.create_embeddings:
+                # Fallback to chunk count if knowledge service not available
+                vector_embeddings_created = len(chunks)
             
             processing_time = time.time() - start_time
             

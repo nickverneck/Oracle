@@ -20,15 +20,47 @@ from oracle.models.ingestion import (
     FileUploadInfo,
 )
 from oracle.services.ingestion import IngestionService
+from oracle.services.knowledge import KnowledgeRetrievalService
+from oracle.core.config import get_settings
 import structlog
 
 logger = structlog.get_logger(__name__)
 router = APIRouter()
 
+# Global instances
+knowledge_service = None
 
-def get_ingestion_service() -> IngestionService:
+
+def get_knowledge_service() -> KnowledgeRetrievalService:
+    """Get knowledge retrieval service instance."""
+    global knowledge_service
+    if knowledge_service is None:
+        settings = get_settings()
+        config = {
+            "neo4j": {
+                "uri": getattr(settings, "NEO4J_URI", "bolt://localhost:7687"),
+                "username": getattr(settings, "NEO4J_USERNAME", "neo4j"),
+                "password": getattr(settings, "NEO4J_PASSWORD", "password")
+            },
+            "chromadb": {
+                "host": getattr(settings, "CHROMADB_HOST", "localhost"),
+                "port": getattr(settings, "CHROMADB_PORT", 8002)
+            },
+            "retrieval": {
+                "max_graph_results": 5,
+                "max_vector_results": 5,
+                "similarity_threshold": 0.7
+            }
+        }
+        knowledge_service = KnowledgeRetrievalService(config)
+    return knowledge_service
+
+
+def get_ingestion_service(
+    knowledge_service: KnowledgeRetrievalService = Depends(get_knowledge_service)
+) -> IngestionService:
     """Dependency to get ingestion service instance."""
-    return IngestionService()
+    return IngestionService(knowledge_service=knowledge_service)
 
 
 @router.post(
