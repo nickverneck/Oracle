@@ -14,14 +14,14 @@
   - Configure CORS and middleware for frontend communication
   - _Requirements: 4.1, 4.2, 4.3, 4.4_
 
-- [ ] 3. Create data models and validation schemas
+- [x] 3. Create data models and validation schemas
   - Implement Pydantic models for chat requests and responses
   - Create document ingestion request/response models
   - Define error response models and exception handling classes
   - Add model validation and serialization logic
   - _Requirements: 2.4, 3.1, 3.5_
 
-- [ ] 4. Implement model serving client abstraction layer
+- [-] 4. Implement model serving client abstraction layer
   - Create base model client interface for consistent API across providers
   - Implement vLLM client with OpenAI-compatible API calls
   - Implement Ollama client with configurable URL support
