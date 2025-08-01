@@ -158,7 +158,7 @@
 					</div>
 					<div>
 						<h1 class="text-xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">Data Ingestion</h1>
-						<p class="text-xs text-gray-400">Upload & Process Documents</p>
+						<p class="text-xs text-gray-300">Upload & Process Documents</p>
 					</div>
 				</div>
 			</div>
@@ -181,7 +181,7 @@
 								<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
 							</svg>
 							<span class="font-medium">Knowledge Graph</span>
-							<p class="text-xs text-gray-400 text-center">Extract entities and relationships</p>
+							<p class="text-xs text-gray-300 text-center">Extract entities and relationships</p>
 						</div>
 					</button>
 					<button
@@ -205,7 +205,7 @@
 								<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
 							</svg>
 							<span class="font-medium">Both</span>
-							<p class="text-xs text-gray-400 text-center">Knowledge graph + RAG</p>
+							<p class="text-xs text-gray-300 text-center">Knowledge graph + RAG</p>
 						</div>
 					</button>
 				</div>
