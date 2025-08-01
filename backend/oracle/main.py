@@ -50,10 +50,11 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     
-    # Configure trusted host middleware
+    # Configure trusted host middleware (add testserver for testing)
+    allowed_hosts = settings.ALLOWED_HOSTS + ["testserver"]
     app.add_middleware(
         TrustedHostMiddleware,
-        allowed_hosts=settings.ALLOWED_HOSTS,
+        allowed_hosts=allowed_hosts,
     )
     
     # Include API routes

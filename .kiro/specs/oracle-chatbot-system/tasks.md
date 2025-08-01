@@ -53,7 +53,7 @@
   - Write integration tests for hybrid retrieval
   - _Requirements: 6.1, 6.4_
 
-- [ ] 8. Implement chat endpoint with knowledge integration
+- [x] 8. Implement chat endpoint with knowledge integration
   - Create POST /api/v1/chat endpoint with request validation
   - Integrate knowledge retrieval with model serving
   - Implement response formatting with confidence scores and sources
