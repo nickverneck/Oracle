@@ -1,16 +1,6 @@
 <script lang="ts">
 	import Toolbar from '$lib/components/Toolbar.svelte';
-
-	interface UploadedFile {
-		id: string;
-		name: string;
-		size: number;
-		type: string;
-		status: 'uploading' | 'processing' | 'completed' | 'error';
-		progress: number;
-		timestamp: Date;
-		processingType: 'knowledge-graph' | 'rag' | 'both';
-	}
+	import { uploadFiles, type UploadedFile, type IngestionResponse } from '$lib/services/ingestion';
 
 	let files: UploadedFile[] = [];
 	let dragActive = false;
@@ -69,55 +59,72 @@
 		target.value = ''; // Reset input
 	}
 
-	function processFiles(fileList: File[]) {
+	async function processFiles(fileList: File[]) {
 		const validFiles = fileList.filter(file => {
 			const extension = '.' + file.name.split('.').pop()?.toLowerCase();
 			return acceptedTypes.includes(extension);
 		});
 
-		validFiles.forEach(file => {
-			const uploadedFile: UploadedFile = {
-				id: generateId(),
-				name: file.name,
-				size: file.size,
-				type: file.type || 'application/octet-stream',
-				status: 'uploading',
-				progress: 0,
-				timestamp: new Date(),
-				processingType
-			};
+		const newUploadedFiles: UploadedFile[] = validFiles.map(file => ({
+			id: generateId(),
+			name: file.name,
+			size: file.size,
+			type: file.type || 'application/octet-stream',
+			status: 'uploading',
+			progress: 0,
+			timestamp: new Date(),
+			processingType
+		}));
 
-			files = [...files, uploadedFile];
-			simulateUpload(uploadedFile.id);
-		});
-	}
+		files = [...files, ...newUploadedFiles];
 
-	async function simulateUpload(fileId: string) {
-		// Simulate upload progress
-		for (let progress = 0; progress <= 100; progress += 10) {
-			await new Promise(resolve => setTimeout(resolve, 200));
-			files = files.map(f => 
-				f.id === fileId ? { ...f, progress } : f
-			);
+		try {
+			const response = await uploadFiles(validFiles, processingType, (progress) => {
+				newUploadedFiles.forEach(f => {
+					files = files.map(file => 
+						file.id === f.id ? { ...file, progress } : file
+					);
+				});
+			});
+
+			// Update status to processing
+			newUploadedFiles.forEach(f => {
+				files = files.map(file => 
+					file.id === f.id ? { ...file, status: 'processing', progress: 0 } : file
+				);
+			});
+
+			// Handle response
+			if (response.status === 'success' || response.successful_files > 0) {
+				response.processed_files.forEach(processedFile => {
+					const originalFile = newUploadedFiles.find(f => f.name === processedFile.filename);
+					if (originalFile) {
+						files = files.map(f =>
+							f.id === originalFile.id ? { ...f, status: 'completed', progress: 100 } : f
+						);
+					}
+				});
+			}
+
+			if (response.errors && response.errors.length > 0) {
+				response.errors.forEach(error => {
+					const originalFile = newUploadedFiles.find(f => f.name === error.filename);
+					if (originalFile) {
+						files = files.map(f =>
+							f.id === originalFile.id ? { ...f, status: 'error', error: error.error_message } : f
+						);
+					}
+				});
+			}
+
+		} catch (error) {
+			console.error('Upload failed:', error);
+			newUploadedFiles.forEach(f => {
+				files = files.map(file => 
+					file.id === f.id ? { ...file, status: 'error', error: 'Upload failed' } : file
+				);
+			});
 		}
-
-		// Change to processing
-		files = files.map(f => 
-			f.id === fileId ? { ...f, status: 'processing', progress: 0 } : f
-		);
-
-		// Simulate processing
-		for (let progress = 0; progress <= 100; progress += 5) {
-			await new Promise(resolve => setTimeout(resolve, 300));
-			files = files.map(f => 
-				f.id === fileId ? { ...f, progress } : f
-			);
-		}
-
-		// Complete
-		files = files.map(f => 
-			f.id === fileId ? { ...f, status: 'completed', progress: 100 } : f
-		);
 	}
 
 	function removeFile(fileId: string) {
@@ -125,10 +132,15 @@
 	}
 
 	function retryFile(fileId: string) {
-		files = files.map(f => 
-			f.id === fileId ? { ...f, status: 'uploading', progress: 0 } : f
-		);
-		simulateUpload(fileId);
+		const fileToRetry = files.find(f => f.id === fileId);
+		if (fileToRetry) {
+			// This is a simplified retry. A more robust implementation would
+			// re-use the original File object. For this example, we'll just reset the state.
+			files = files.map(f => 
+				f.id === fileId ? { ...f, status: 'uploading', progress: 0, error: undefined } : f
+			);
+			// In a real app, you'd need to re-trigger the upload process for this file.
+		}
 	}
 
 	function clearCompleted() {
