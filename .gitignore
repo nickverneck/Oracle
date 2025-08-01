@@ -113,7 +113,6 @@ build/
 
 # Model cache
 .cache/
-models/
 
 # UV lock file (should be committed but excluding for now)
 # uv.lock
