@@ -61,7 +61,7 @@
   - Write comprehensive tests for chat functionality
   - _Requirements: 2.1, 2.2, 2.3, 2.4_
 
-- [ ] 9. Build document ingestion system
+- [x] 9. Build document ingestion system
   - Create POST /api/v1/ingest endpoint with file upload handling
   - Implement multi-format document parsing (PDF, TXT, DOCX)
   - Add document processing pipeline for graph and vector storage
