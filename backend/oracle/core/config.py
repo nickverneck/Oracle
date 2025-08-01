@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     
     # API Configuration
     API_HOST: str = Field(default="0.0.0.0", description="API host")
-    API_PORT: int = Field(default=8000, description="API port")
+    API_PORT: int = Field(default=8080, description="API port")
     DEBUG: bool = Field(default=False, description="Debug mode")
     
     # CORS Configuration
@@ -64,7 +64,7 @@ class Settings(BaseSettings):
         description="ChromaDB host"
     )
     CHROMADB_PORT: int = Field(
-        default=8002,
+        default=8000,
         description="ChromaDB port"
     )
     

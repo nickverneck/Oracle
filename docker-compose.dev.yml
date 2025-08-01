@@ -14,7 +14,7 @@ services:
       - ./backend:/app
       - /app/.venv  # Preserve the virtual environment
       - backend-cache:/root/.cache
-    command: ["uv", "run", "uvicorn", "oracle.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    command: ["uv", "run", "uvicorn", "oracle.main:app", "--host", "0.0.0.0", "--port", "8080", "--reload"]
 
   oracle-frontend:
     build:
