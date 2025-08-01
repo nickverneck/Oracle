@@ -1,0 +1,42 @@
+# Development override for docker-compose.yml
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+services:
+  oracle-backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    environment:
+      - NODE_ENV=development
+      - LOG_LEVEL=DEBUG
+      - RELOAD=true
+    volumes:
+      - ./backend:/app
+      - backend-cache:/root/.cache
+    command: ["uv", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+  oracle-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    environment:
+      - NODE_ENV=development
+    volumes:
+      - ./frontend:/app
+      - frontend-node-modules:/app/node_modules
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+    ports:
+      - "5173:5173"  # Vite dev server port
+
+  # Reduce resource requirements for development
+  oracle-neo4j:
+    environment:
+      - NEO4J_dbms_memory_heap_initial_size=256m
+      - NEO4J_dbms_memory_heap_max_size=256m
+      - NEO4J_dbms_memory_pagecache_size=128m
+
+  # Optional: disable GPU requirements for development if no GPU available
+  oracle-vllm:
+    deploy:
+      resources:
+        reservations: {}  # Remove GPU requirements
