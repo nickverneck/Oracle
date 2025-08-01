@@ -103,15 +103,12 @@
 	<main class="pt-20 pb-32 px-4">
 		<div class="max-w-4xl mx-auto">
 			<!-- Tab Navigation -->
-			<div class="mb-8">
-				<div class="bg-white backdrop-blur-md border border-white rounded-2xl p-2">
+			<div class="mb-8 mt-6">
+				<div class="glass rounded-2xl p-2">
 					<div class="flex space-x-2">
 						<button
 							onclick={() => activeTab = 'providers'}
-							class="flex-1 py-3 px-4 rounded-xl transition-all duration-300 ease-out hover:bg-white"
-							class:bg-white={activeTab === 'providers'}
-							class:text-blue-400={activeTab === 'providers'}
-							class:text-gray-400={activeTab !== 'providers'}
+							class="flex-1 py-3 px-4 rounded-xl transition-all duration-300 ease-out hover:bg-gray-700 {activeTab === 'providers' ? 'bg-gray-700 text-blue-400' : 'text-gray-400'}"
 						>
 							<div class="flex items-center justify-center space-x-2">
 								<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
@@ -122,10 +119,7 @@
 						</button>
 						<button
 							onclick={() => activeTab = 'general'}
-							class="flex-1 py-3 px-4 rounded-xl transition-all duration-300 ease-out hover:bg-white"
-							class:bg-white={activeTab === 'general'}
-							class:text-blue-400={activeTab === 'general'}
-							class:text-gray-400={activeTab !== 'general'}
+							class="flex-1 py-3 px-4 rounded-xl transition-all duration-300 ease-out hover:bg-gray-700 {activeTab === 'general' ? 'bg-gray-700 text-blue-400' : 'text-gray-400'}"
 						>
 							<div class="flex items-center justify-center space-x-2">
 								<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
@@ -142,7 +136,7 @@
 			{#if activeTab === 'providers'}
 				<div class="space-y-6">
 					{#each providers as provider}
-						<div class="bg-white backdrop-blur-md border border-white rounded-2xl p-6 shadow-xl">
+						<div class="glass rounded-2xl p-6 shadow-xl">
 							<div class="flex items-center justify-between mb-4">
 								<div class="flex items-center space-x-3">
 									<div class="w-10 h-10 bg-gradient-to-br from-blue-400 to-purple-500 rounded-lg flex items-center justify-center">
@@ -188,7 +182,7 @@
 												bind:value={provider.config.url}
 												onchange={(e) => updateProviderConfig(provider.id, 'url', e.target.value)}
 												placeholder="http://localhost:11434"
-												class="w-full px-4 py-3 bg-white border border-white rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300"
+												class="w-full px-4 py-3 bg-gray-800 bg-opacity-50 border border-gray-600 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300"
 											/>
 										</div>
 									{:else if provider.type === 'gemini'}
@@ -200,7 +194,7 @@
 													bind:value={provider.config.apiKey}
 													onchange={(e) => updateProviderConfig(provider.id, 'apiKey', e.target.value)}
 													placeholder="Enter your Gemini API key"
-													class="w-full px-4 py-3 pr-12 bg-white border border-white rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300"
+													class="w-full px-4 py-3 pr-12 bg-gray-800 bg-opacity-50 border border-gray-600 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300"
 												/>
 												<button
 													onclick={() => showApiKey = !showApiKey}
@@ -227,7 +221,7 @@
 											bind:value={provider.config.model}
 											onchange={(e) => updateProviderConfig(provider.id, 'model', e.target.value)}
 											placeholder="Enter model name"
-											class="w-full px-4 py-3 bg-white border border-white rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300"
+											class="w-full px-4 py-3 bg-gray-800 bg-opacity-50 border border-gray-600 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300"
 											readonly={provider.type === 'llvm'}
 										/>
 									</div>
@@ -256,7 +250,7 @@
 				</button>
 				<button
 					onclick={resetSettings}
-					class="flex-1 bg-white hover:bg-white border border-white text-white font-medium py-3 px-6 rounded-xl transition-all duration-300 ease-out hover:scale-105 active:scale-95"
+					class="flex-1 bg-blue-500 hover:bg-blue-600 border border-blue-500 text-white font-medium py-3 px-6 rounded-xl transition-all duration-300 ease-out hover:scale-105 active:scale-95"
 				>
 					Reset to Defaults
 				</button>
