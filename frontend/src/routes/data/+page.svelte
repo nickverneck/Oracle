@@ -157,9 +157,9 @@
 	<meta name="description" content="Upload and process documents for Oracle AI knowledge base" />
 </svelte:head>
 
-<div class="min-h-screen  text-white">
+<div class="min-h-screen text-white">
 	<!-- Header -->
-	<header class="fixed top-0 left-0 right-0 z-40 bg-white/5 backdrop-blur-md border-b border-white/10">
+	<header class="fixed top-0 left-0 right-0 z-40 bg-white backdrop-blur-md border-b border-white/20">
 		<div class="max-w-4xl mx-auto px-4 py-4">
 			<div class="flex items-center justify-between">
 				<div class="flex items-center space-x-3">
@@ -180,50 +180,7 @@
 	<!-- Main Content -->
 	<main class="pt-20 pb-32 px-4">
 		<div class="max-w-4xl mx-auto">
-			<!-- Processing Type Selection -->
-			<div class="mt-6 glass rounded-2xl p-6 shadow-xl">
-				<h3 class="text-lg font-semibold text-white mb-4">Processing Method</h3>
-				<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-					<button
-						onclick={() => processingType = 'knowledge-graph'}
-						class="p-4 rounded-xl border-2 transition-all duration-300 ease-out hover:scale-105 active:scale-95 {processingType === 'knowledge-graph' ? 'border-blue-500 bg-blue-500' : 'border-white bg-white/5'}"
-					>
-						<div class="flex flex-col items-center space-y-2">
-							<svg class="w-8 h-8 text-blue-400" fill="currentColor" viewBox="0 0 24 24">
-								<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-							</svg>
-							<span class="font-medium">Knowledge Graph</span>
-							<p class="text-xs text-gray-300 text-center">Extract entities and relationships</p>
-						</div>
-					</button>
-					<button
-						onclick={() => processingType = 'rag'}
-						class="p-4 rounded-xl border-2 transition-all duration-300 ease-out hover:scale-105 active:scale-95 {processingType === 'rag' ? 'border-blue-500 bg-blue-500' : 'border-white bg-white/5'}"
-					>
-						<div class="flex flex-col items-center space-y-2">
-							<svg class="w-8 h-8 text-purple-400" fill="currentColor" viewBox="0 0 24 24">
-								<path d="M9 3V18H12V3H9M12 5L16 18L19 17L15 4L12 5Z"/>
-							</svg>
-							<span class="font-medium">RAG</span>
-							<p class="text-xs text-gray-400 text-center">Retrieval augmented generation</p>
-						</div>
-					</button>
-					<button
-						onclick={() => processingType = 'both'}
-						class="p-4 rounded-xl border-2 transition-all duration-300 ease-out hover:scale-105 active:scale-95 {processingType === 'both' ? 'border-blue-500 bg-blue-500' : 'border-gray-600 bg-gray-800 bg-opacity-20'}"
-					>
-						<div class="flex flex-col items-center space-y-2">
-							<svg class="w-8 h-8 text-green-400" fill="currentColor" viewBox="0 0 24 24">
-								<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-							</svg>
-							<span class="font-medium">Both</span>
-							<p class="text-xs text-gray-300 text-center">Knowledge graph + RAG</p>
-						</div>
-					</button>
-				</div>
-			</div>
-
-			<!-- File Upload Area -->
+            <!-- File Upload Area -->
 			<div class="mb-8 mt-6">
 				<div
 					class="relative glass border-2 border-dashed rounded-2xl p-12 text-center transition-all duration-300 ease-out"
@@ -261,10 +218,52 @@
 					</div>
 				</div>
 			</div>
+			<!-- Processing Type Selection -->
+			<div class="mt-6 glass rounded-2xl p-6 shadow-xl bg-white/10 backdrop-blur-md border border-white/20">
+				<h3 class="text-lg font-semibold text-white mb-4">Processing Method</h3>
+				<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+					<button
+						onclick={() => processingType = 'knowledge-graph'}
+						class="p-4 rounded-xl border-2 transition-all duration-300 ease-out hover:scale-105 active:scale-95 {processingType === 'knowledge-graph' ? 'border-blue-500 bg-blue-500/50' : 'border-white/20 bg-white/10'}"
+					>
+						<div class="flex flex-col items-center space-y-2">
+							<svg class="w-8 h-8 text-blue-400" fill="currentColor" viewBox="0 0 24 24">
+								<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+							</svg>
+							<span class="font-medium">Knowledge Graph</span>
+							<p class="text-xs text-gray-300 text-center">Extract entities and relationships</p>
+						</div>
+					</button>
+					<button
+						onclick={() => processingType = 'rag'}
+						class="p-4 rounded-xl border-2 transition-all duration-300 ease-out hover:scale-105 active:scale-95 {processingType === 'rag' ? 'border-purple-500 bg-purple-500/50' : 'border-white/20 bg-white/10'}"
+					>
+						<div class="flex flex-col items-center space-y-2">
+							<svg class="w-8 h-8 text-purple-400" fill="currentColor" viewBox="0 0 24 24">
+								<path d="M9 3V18H12V3H9M12 5L16 18L19 17L15 4L12 5Z"/>
+							</svg>
+							<span class="font-medium">RAG</span>
+							<p class="text-xs text-gray-400 text-center">Retrieval augmented generation</p>
+						</div>
+					</button>
+					<button
+						onclick={() => processingType = 'both'}
+						class="p-4 rounded-xl border-2 transition-all duration-300 ease-out hover:scale-105 active:scale-95 {processingType === 'both' ? 'border-green-500 bg-green-500/50' : 'border-white/20 bg-white/10'}"
+					>
+						<div class="flex flex-col items-center space-y-2">
+							<svg class="w-8 h-8 text-green-400" fill="currentColor" viewBox="0 0 24 24">
+								<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+							</svg>
+							<span class="font-medium">Both</span>
+							<p class="text-xs text-gray-300 text-center">Knowledge graph + RAG</p>
+						</div>
+					</button>
+				</div>
+			</div>
 
 			<!-- File List -->
 			{#if files.length > 0}
-				<div class="bg-white backdrop-blur-md border border-white rounded-2xl p-6 shadow-xl">
+				<div class="bg-white  backdrop-blur-md border border-white/20 rounded-2xl p-6 shadow-xl">
 					<div class="flex items-center justify-between mb-6">
 						<h3 class="text-lg font-semibold text-white">Uploaded Files ({files.length})</h3>
 						<button

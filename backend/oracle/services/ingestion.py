@@ -297,6 +297,7 @@ class IngestionService:
         processing_options: ProcessingOptions,
         overwrite_existing: bool = False,
         batch_id: Optional[str] = None,
+        timeout: int = 300,
     ) -> IngestionResponse:
         """Process multiple files concurrently."""
         start_time = time.time()
@@ -318,8 +319,23 @@ class IngestionService:
             )
             tasks.append(task)
         
-        # Wait for all tasks to complete
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+        try:
+            results = await asyncio.wait_for(
+                asyncio.gather(*tasks, return_exceptions=True),
+                timeout=timeout
+            )
+        except asyncio.TimeoutError:
+            logger.error(f"Ingestion batch {batch_id} timed out after {timeout} seconds")
+            if batch_id:
+                self.batch_status[batch_id].update({
+                    "status": "failed",
+                    "error": "timeout",
+                    "end_time": time.time(),
+                })
+            raise HTTPException(
+                status_code=status.HTTP_408_REQUEST_TIMEOUT,
+                detail=f"Processing timed out after {timeout} seconds. Please try again with a smaller batch or a longer timeout."
+            )
         
         # Collect results
         processed_files = []

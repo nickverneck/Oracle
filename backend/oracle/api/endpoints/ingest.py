@@ -79,6 +79,7 @@ async def ingest_documents(
     language: str = Form("en", description="Document language code"),
     overwrite_existing: bool = Form(False, description="Whether to overwrite existing documents"),
     batch_id: Optional[str] = Form(None, description="Optional batch identifier"),
+    timeout: int = Form(300, description="Timeout in seconds for processing large files"),
     ingestion_service: IngestionService = Depends(get_ingestion_service),
 ) -> IngestionResponse:
     """
