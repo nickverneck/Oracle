@@ -212,7 +212,7 @@
 			</div>
 
 			<!-- File Upload Area -->
-			<div class="mb-8">
+			<div class="mb-8 mt-6">
 				<div
 					class="relative glass border-2 border-dashed rounded-2xl p-12 text-center transition-all duration-300 ease-out"
 					class:border-blue-500={dragActive}
