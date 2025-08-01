@@ -2,6 +2,8 @@
 	import ChatMessage from '$lib/components/ChatMessage.svelte';
 	import ChatInput from '$lib/components/ChatInput.svelte';
 	import Toolbar from '$lib/components/Toolbar.svelte';
+	import { chatService, type ChatMessage as ServiceChatMessage } from '$lib/services/chat';
+	import { settings, getActiveProvider } from '$lib/stores/settings';
 
 	interface Message {
 		id: string;
@@ -46,24 +48,45 @@
 		// Scroll to bottom after adding user message
 		setTimeout(scrollToBottom, 100);
 
-		// Simulate API call to Oracle backend
+		// Use the chat service to send message to active provider
 		try {
-			// TODO: Replace with actual API call
-			await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
+			// Convert messages to service format
+			const serviceMessages: ServiceChatMessage[] = messages.map(msg => ({
+				id: msg.id,
+				role: msg.role,
+				content: msg.content,
+				timestamp: msg.timestamp
+			}));
 
-			const assistantMessage: Message = {
-				id: generateId(),
-				content: `I understand you're asking about "${event.detail.message}". This is a simulated response. In the full implementation, I would process your query using knowledge graph and RAG approaches to provide accurate, contextual information.`,
-				role: 'assistant',
-				timestamp: new Date()
-			};
+			// Get active provider info for user feedback
+			const activeProvider = getActiveProvider($settings);
+			const providerName = activeProvider?.name || 'Unknown';
 
-			messages = [...messages, assistantMessage];
+			// Send message using chat service
+			const response = await chatService.sendMessage(serviceMessages);
+
+			if (response.success && response.message) {
+				const assistantMessage: Message = {
+					id: generateId(),
+					content: response.message,
+					role: 'assistant',
+					timestamp: new Date()
+				};
+				messages = [...messages, assistantMessage];
+			} else {
+				const errorMessage: Message = {
+					id: generateId(),
+					content: `Error with ${providerName}: ${response.error || 'Unknown error occurred'}. Please check your provider settings.`,
+					role: 'assistant',
+					timestamp: new Date()
+				};
+				messages = [...messages, errorMessage];
+			}
 		} catch (error) {
 			console.error('Error sending message:', error);
 			const errorMessage: Message = {
 				id: generateId(),
-				content: 'Sorry, I encountered an error processing your request. Please try again.',
+				content: 'Sorry, I encountered an unexpected error. Please try again or check your provider settings.',
 				role: 'assistant',
 				timestamp: new Date()
 			};

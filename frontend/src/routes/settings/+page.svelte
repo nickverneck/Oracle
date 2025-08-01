@@ -1,76 +1,41 @@
 <script lang="ts">
 	import Toolbar from '$lib/components/Toolbar.svelte';
-
-	interface Provider {
-		id: string;
-		name: string;
-		type: 'llvm' | 'ollama' | 'gemini';
-		enabled: boolean;
-		config: {
-			apiKey?: string;
-			url?: string;
-			model?: string;
-		};
-	}
-
-	let providers: Provider[] = [
-		{
-			id: '1',
-			name: 'LLVM (Default)',
-			type: 'llvm',
-			enabled: true,
-			config: {
-				model: 'llvm-default'
-			}
-		},
-		{
-			id: '2',
-			name: 'Ollama',
-			type: 'ollama',
-			enabled: false,
-			config: {
-				url: 'http://localhost:11434',
-				model: 'llama2'
-			}
-		},
-		{
-			id: '3',
-			name: 'Google Gemini',
-			type: 'gemini',
-			enabled: false,
-			config: {
-				apiKey: '',
-				model: 'gemini-pro'
-			}
-		}
-	];
+	import { settings, settingsActions, type Provider } from '$lib/stores/settings';
 
 	let activeTab = 'providers';
 	let showApiKey = false;
+	let saveMessage = '';
+	let saveTimeout: number;
 
 	function toggleProvider(providerId: string) {
-		providers = providers.map(p => 
-			p.id === providerId ? { ...p, enabled: !p.enabled } : p
-		);
+		settingsActions.toggleProvider(providerId);
+		showSaveMessage('Provider updated successfully!');
 	}
 
 	function updateProviderConfig(providerId: string, field: string, value: string) {
-		providers = providers.map(p => 
-			p.id === providerId 
-				? { ...p, config: { ...p.config, [field]: value } }
-				: p
-		);
+		settingsActions.updateProviderConfig(providerId, field, value);
+		showSaveMessage('Configuration updated!');
 	}
 
-	function saveSettings() {
-		// TODO: Implement settings save functionality
-		console.log('Saving settings:', providers);
-		// Show success message or handle errors
+	function updateSystemPrompt(event: Event) {
+		const target = event.target as HTMLTextAreaElement;
+		settingsActions.updateSystemPrompt(target.value);
+		showSaveMessage('System prompt updated!');
+	}
+
+	function showSaveMessage(message: string) {
+		saveMessage = message;
+		if (saveTimeout) clearTimeout(saveTimeout);
+		saveTimeout = setTimeout(() => {
+			saveMessage = '';
+		}, 3000);
 	}
 
 	function resetSettings() {
-		// TODO: Implement settings reset functionality
-		console.log('Resetting settings');
+		if (confirm('Are you sure you want to reset all settings to defaults?')) {
+			settingsActions.resetToDefaults();
+			showSaveMessage('Settings reset to defaults!');
+		}
 	}
 </script>
 
@@ -135,7 +100,7 @@
 			<!-- Providers Tab -->
 			{#if activeTab === 'providers'}
 				<div class="space-y-6">
-					{#each providers as provider}
+					{#each $settings.providers as provider}
 						<div class="glass rounded-2xl p-6 shadow-xl">
 							<div class="flex items-center justify-between mb-4">
 								<div class="flex items-center space-x-3">
@@ -234,23 +199,61 @@
 
 			<!-- General Tab -->
 			{#if activeTab === 'general'}
-				<div class="bg-white backdrop-blur-md border border-white rounded-2xl p-6 shadow-xl">
-					<h3 class="text-lg font-semibold text-white mb-4">General Settings</h3>
-					<p class="text-gray-400">General settings will be available in future updates.</p>
+				<div class="glass rounded-2xl p-6 shadow-xl">
+					<h3 class="text-lg font-semibold text-white mb-6">General Settings</h3>
+					
+					<!-- System Prompt -->
+					<div class="mb-6">
+						<label for="systemPrompt" class="block text-sm font-medium text-gray-300 mb-2">
+							System Prompt
+						</label>
+						<textarea
+							id="systemPrompt"
+							value={$settings.systemPrompt}
+							oninput={updateSystemPrompt}
+							class="w-full h-32 bg-gray-800 bg-opacity-50 border border-gray-600 rounded-xl px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+							placeholder="Enter your custom system prompt here..."
+						></textarea>
+						<p class="text-xs text-gray-400 mt-2">
+							This prompt will be used to initialize the AI assistant's behavior and personality.
+						</p>
+					</div>
+
+					<!-- Theme Settings -->
+					<div class="mb-6">
+						<label class="block text-sm font-medium text-gray-300 mb-2">
+							Theme
+						</label>
+						<div class="flex space-x-3">
+							<button
+								class="px-4 py-2 rounded-lg border transition-all duration-300 {$settings.general.theme === 'dark' ? 'border-blue-500 bg-blue-500 text-white' : 'border-gray-600 bg-gray-800 bg-opacity-20 text-gray-300 hover:border-gray-500'}"
+								onclick={() => settingsActions.updateGeneral({ theme: 'dark' })}
+							>
+								Dark
+							</button>
+							<button
+								class="px-4 py-2 rounded-lg border transition-all duration-300 {$settings.general.theme === 'light' ? 'border-blue-500 bg-blue-500 text-white' : 'border-gray-600 bg-gray-800 bg-opacity-20 text-gray-300 hover:border-gray-500'}"
+								onclick={() => settingsActions.updateGeneral({ theme: 'light' })}
+							>
+								Light
+							</button>
+						</div>
+					</div>
+				</div>
+			{/if}
+
+			<!-- Save Message -->
+			{#if saveMessage}
+				<div class="mt-6 p-4 bg-green-500 bg-opacity-20 border border-green-500 rounded-xl">
+					<p class="text-green-400 text-sm font-medium">{saveMessage}</p>
 				</div>
 			{/if}
 
 			<!-- Action Buttons -->
 			<div class="mt-8 flex space-x-4">
 				<button
-					onclick={saveSettings}
-					class="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-medium py-3 px-6 rounded-xl transition-all duration-300 ease-out hover:scale-105 active:scale-95"
-				>
-					Save Settings
-				</button>
-				<button
 					onclick={resetSettings}
-					class="flex-1 bg-blue-500 hover:bg-blue-600 border border-blue-500 text-white font-medium py-3 px-6 rounded-xl transition-all duration-300 ease-out hover:scale-105 active:scale-95"
+					class="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-medium py-3 px-6 rounded-xl transition-all duration-300 ease-out hover:scale-105 active:scale-95"
 				>
 					Reset to Defaults
 				</button>
