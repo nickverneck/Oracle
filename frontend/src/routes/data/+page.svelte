@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Toolbar from '$lib/components/Toolbar.svelte';
+	import Header from '$lib/components/Header.svelte';
 	import { uploadFiles, type UploadedFile, type IngestionResponse } from '$lib/services/ingestion';
 
 	let files: UploadedFile[] = [];
@@ -96,13 +97,11 @@
 
 			// Handle response
 			if (response.status === 'success' || response.successful_files > 0) {
-				response.processed_files.forEach(processedFile => {
-					const originalFile = newUploadedFiles.find(f => f.name === processedFile.filename);
-					if (originalFile) {
-						files = files.map(f =>
-							f.id === originalFile.id ? { ...f, status: 'completed', progress: 100 } : f
-						);
-					}
+				// Mark successful files as completed
+				newUploadedFiles.forEach(file => {
+					files = files.map(f =>
+						f.id === file.id ? { ...f, status: 'completed', progress: 100 } : f
+					);
 				});
 			}
 
@@ -159,112 +158,104 @@
 
 <div class="min-h-screen  text-white">
 	<!-- Header -->
-	<header class="fixed top-0 left-0 right-0 z-40 bg-white/5 backdrop-blur-md border-b border-white/10">
-		<div class="max-w-4xl mx-auto px-4 py-4">
-			<div class="flex items-center justify-between">
-				<div class="flex items-center space-x-3">
-					<div class="w-8 h-8 bg-gradient-to-br from-blue-400 to-purple-500 rounded-lg flex items-center justify-center">
-						<svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
-							<path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
-						</svg>
-					</div>
-					<div>
-						<h1 class="text-xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">Data Ingestion</h1>
-						<p class="text-xs text-gray-300">Upload & Process Documents</p>
-					</div>
-				</div>
-			</div>
-		</div>
-	</header>
+	<Header title="Oracle" subtitle="Data Ingestion" />
 
 	<!-- Main Content -->
 	<main class="pt-20 pb-32 px-4">
 		<div class="max-w-4xl mx-auto">
 			<!-- Processing Type Selection -->
-			<div class="mt-6 glass rounded-2xl p-6 shadow-xl">
-				<h3 class="text-lg font-semibold text-white mb-4">Processing Method</h3>
-				<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-					<button
-						onclick={() => processingType = 'knowledge-graph'}
-						class="p-4 rounded-xl border-2 transition-all duration-300 ease-out hover:scale-105 active:scale-95 {processingType === 'knowledge-graph' ? 'border-blue-500 bg-blue-500' : 'border-white bg-white/5'}"
-					>
-						<div class="flex flex-col items-center space-y-2">
-							<svg class="w-8 h-8 text-blue-400" fill="currentColor" viewBox="0 0 24 24">
-								<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-							</svg>
-							<span class="font-medium">Knowledge Graph</span>
-							<p class="text-xs text-gray-300 text-center">Extract entities and relationships</p>
-						</div>
-					</button>
-					<button
-						onclick={() => processingType = 'rag'}
-						class="p-4 rounded-xl border-2 transition-all duration-300 ease-out hover:scale-105 active:scale-95 {processingType === 'rag' ? 'border-blue-500 bg-blue-500' : 'border-white bg-white/5'}"
-					>
-						<div class="flex flex-col items-center space-y-2">
-							<svg class="w-8 h-8 text-purple-400" fill="currentColor" viewBox="0 0 24 24">
-								<path d="M9 3V18H12V3H9M12 5L16 18L19 17L15 4L12 5Z"/>
-							</svg>
-							<span class="font-medium">RAG</span>
-							<p class="text-xs text-gray-400 text-center">Retrieval augmented generation</p>
-						</div>
-					</button>
-					<button
-						onclick={() => processingType = 'both'}
-						class="p-4 rounded-xl border-2 transition-all duration-300 ease-out hover:scale-105 active:scale-95 {processingType === 'both' ? 'border-blue-500 bg-blue-500' : 'border-gray-600 bg-gray-800 bg-opacity-20'}"
-					>
-						<div class="flex flex-col items-center space-y-2">
-							<svg class="w-8 h-8 text-green-400" fill="currentColor" viewBox="0 0 24 24">
-								<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-							</svg>
-							<span class="font-medium">Both</span>
-							<p class="text-xs text-gray-300 text-center">Knowledge graph + RAG</p>
-						</div>
-					</button>
-				</div>
-			</div>
-
-			<!-- File Upload Area -->
-			<div class="mb-8 mt-6">
-				<div
-					class="relative glass border-2 border-dashed rounded-2xl p-12 text-center transition-all duration-300 ease-out"
-					class:border-blue-500={dragActive}
-					class:bg-blue-500={dragActive}
-					class:border-gray-600={!dragActive}
-					ondragenter={handleDragEnter}
-					ondragleave={handleDragLeave}
-					ondragover={handleDragOver}
-					ondrop={handleDrop}
-				>
-					<div class="flex flex-col items-center space-y-4">
-						<div class="w-16 h-16 bg-gradient-to-br from-blue-400 to-purple-500 rounded-2xl flex items-center justify-center">
-							<svg class="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
-								<path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
-							</svg>
-						</div>
-						<div>
-							<h3 class="text-xl font-semibold text-white mb-2">
-								{dragActive ? 'Drop files here' : 'Upload Documents'}
-							</h3>
-							<p class="text-gray-400 mb-4">
-								Drag and drop files here, or click to browse
-							</p>
-							<p class="text-sm text-gray-500">
-								Supported: PDF, HTML, TXT, Markdown, DOC, DOCX
-							</p>
-						</div>
+			{#if files.length === 0}
+				<div class="mt-6 glass rounded-2xl p-6 shadow-xl">
+					<h3 class="text-lg font-semibold text-white mb-4">Processing Method</h3>
+					<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
 						<button
-							onclick={openFileDialog}
-							class="bg-blue-500 hover:bg-blue-600 text-white font-medium py-3 px-6 rounded-xl transition-all duration-300 ease-out hover:scale-105 active:scale-95"
+							onclick={() => processingType = 'knowledge-graph'}
+							class="p-4 rounded-xl border-2 transition-all duration-300 ease-out hover:scale-105 active:scale-95 {processingType === 'knowledge-graph' ? 'border-blue-500 bg-blue-500' : 'border-white bg-white/5'}"
 						>
-							Choose Files
+							<div class="flex flex-col items-center space-y-2">
+								<svg class="w-8 h-8 text-blue-400" fill="currentColor" viewBox="0 0 24 24">
+									<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+								</svg>
+								<span class="font-medium">Knowledge Graph</span>
+								<p class="text-xs text-gray-300 text-center">Extract entities and relationships</p>
+							</div>
+						</button>
+						<button
+							onclick={() => processingType = 'rag'}
+							class="p-4 rounded-xl border-2 transition-all duration-300 ease-out hover:scale-105 active:scale-95 {processingType === 'rag' ? 'border-blue-500 bg-blue-500' : 'border-white bg-white/5'}"
+						>
+							<div class="flex flex-col items-center space-y-2">
+								<svg class="w-8 h-8 text-purple-400" fill="currentColor" viewBox="0 0 24 24">
+									<path d="M9 3V18H12V3H9M12 5L16 18L19 17L15 4L12 5Z"/>
+								</svg>
+								<span class="font-medium">RAG</span>
+								<p class="text-xs text-gray-400 text-center">Retrieval augmented generation</p>
+							</div>
+						</button>
+						<button
+							onclick={() => processingType = 'both'}
+							class="p-4 rounded-xl border-2 transition-all duration-300 ease-out hover:scale-105 active:scale-95 {processingType === 'both' ? 'border-blue-500 bg-blue-500' : 'border-gray-600 bg-gray-800 bg-opacity-20'}"
+						>
+							<div class="flex flex-col items-center space-y-2">
+								<svg class="w-8 h-8 text-green-400" fill="currentColor" viewBox="0 0 24 24">
+									<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+								</svg>
+								<span class="font-medium">Both</span>
+								<p class="text-xs text-gray-300 text-center">Knowledge graph + RAG</p>
+							</div>
 						</button>
 					</div>
 				</div>
-			</div>
+			{/if}
+
+			<!-- File Upload Area -->
+			{#if files.length === 0}
+				<div class="mb-8 mt-6">
+					<div
+						class="relative glass border-2 border-dashed rounded-2xl p-12 text-center transition-all duration-300 ease-out backdrop-blur-md bg-white/5 border-white/10"
+						class:border-blue-500={dragActive}
+						class:bg-blue-500={dragActive}
+						class:border-gray-600={!dragActive}
+						ondragenter={handleDragEnter}
+						ondragleave={handleDragLeave}
+						ondragover={handleDragOver}
+						ondrop={handleDrop}
+						role="button"
+						aria-label="Upload files by dragging and dropping or clicking"
+						tabindex="0"
+						onkeypress={(e) => e.key === 'Enter' && openFileDialog()}
+					>
+						<div class="flex flex-col items-center space-y-4">
+							<div class="w-16 h-16 bg-gradient-to-br from-blue-400 to-purple-500 rounded-2xl flex items-center justify-center" aria-hidden="true">
+								<svg class="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
+									<path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
+								</svg>
+							</div>
+							<div>
+								<h3 class="text-xl font-semibold text-white mb-2">
+									{dragActive ? 'Drop files here' : 'Upload Documents'}
+								</h3>
+								<p class="text-gray-400 mb-4">
+									Drag and drop files here, or click to browse
+								</p>
+								<p class="text-sm text-gray-500">
+									Supported: PDF, HTML, TXT, Markdown, DOC, DOCX
+								</p>
+							</div>
+							<button
+								onclick={openFileDialog}
+								class="bg-blue-500 hover:bg-blue-600 text-white font-medium py-3 px-6 rounded-xl transition-all duration-300 ease-out hover:scale-105 active:scale-95"
+							>
+								Choose Files
+							</button>
+						</div>
+					</div>
+				</div>
+			{/if}
 
 			<!-- File List -->
 			{#if files.length > 0}
-				<div class="bg-white backdrop-blur-md border border-white rounded-2xl p-6 shadow-xl">
+				<div class="bg-white/10 mb-6 backdrop-blur-md border border-white rounded-2xl p-6 shadow-xl">
 					<div class="flex items-center justify-between mb-6">
 						<h3 class="text-lg font-semibold text-white">Uploaded Files ({files.length})</h3>
 						<button
@@ -292,7 +283,7 @@
 									</div>
 									<div class="flex items-center space-x-2">
 										{#if file.status === 'completed'}
-											<div class="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+											<div class="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center" aria-label="File processed successfully">
 												<svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
 													<path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
 												</svg>
@@ -301,13 +292,14 @@
 											<button
 												onclick={() => retryFile(file.id)}
 												class="w-6 h-6 bg-red-500 rounded-full flex items-center justify-center hover:bg-red-600 transition-colors duration-300"
+												aria-label="Retry file upload"
 											>
 												<svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
 													<path d="M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z"/>
 												</svg>
 											</button>
 										{:else}
-											<div class="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center animate-spin">
+											<div class="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center animate-spin" aria-label="File processing">
 												<svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
 													<path d="M12,4V2A10,10 0 0,0 2,12H4A8,8 0 0,1 12,4Z"/>
 												</svg>
@@ -316,6 +308,7 @@
 										<button
 											onclick={() => removeFile(file.id)}
 											class="w-6 h-6 text-gray-400 hover:text-red-400 transition-colors duration-300"
+											aria-label="Remove file"
 										>
 											<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
 												<path d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/>

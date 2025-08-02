@@ -1,3 +1,4 @@
+import config from '$lib/config';
 
 export interface UploadedFile {
     id: string;
@@ -40,7 +41,10 @@ export async function uploadFiles(
 
     const response = await new Promise<IngestionResponse>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
-        xhr.open('POST', '/api/v1/ingest', true);
+        xhr.open('POST', `${config.BACKEND_API_URL}/ingest`, true);
+        
+        // Set timeout for large file uploads (5 minutes)
+        xhr.timeout = 5 * 60 * 1000; // 5 minutes in milliseconds
 
         xhr.upload.onprogress = (event) => {
             if (event.lengthComputable) {
@@ -53,12 +57,16 @@ export async function uploadFiles(
             if (xhr.status >= 200 && xhr.status < 300) {
                 resolve(JSON.parse(xhr.responseText));
             } else {
-                reject(new Error(xhr.statusText));
+                reject(new Error(`Server error: ${xhr.statusText} (${xhr.status})`));
             }
         };
 
         xhr.onerror = () => {
-            reject(new Error('Network error'));
+            reject(new Error('Network error - please check your connection and try again'));
+        };
+        
+        xhr.ontimeout = () => {
+            reject(new Error('Upload timeout - the file may be too large or network may be slow. Please try a smaller file or check your connection.'));
         };
 
         xhr.send(formData);
