@@ -39,4 +39,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:8080/api/v1/health || exit 1
 
 # Start the application
-CMD ["uv", "run", "uvicorn", "oracle.main:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["uv", "run", "uvicorn", "oracle.main:app", "--host", "0.0.0.0", "--port", "8080", "--timeout-keep-alive", "300", "--timeout-graceful-shutdown", "300", "--limit-concurrency", "1000", "--backlog", "2048"]

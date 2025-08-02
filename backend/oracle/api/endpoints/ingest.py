@@ -89,6 +89,11 @@ async def ingest_documents(
     """
     start_time = time.time()
     
+    # Log incoming request details for diagnostics
+    logger.info(f"Received ingestion request with {len(files)} files")
+    for file in files:
+        logger.info(f"File details - Name: {file.filename}, Size: {file.size}, Content-Type: {file.content_type}")
+    
     # Validate files
     if not files:
         raise HTTPException(
