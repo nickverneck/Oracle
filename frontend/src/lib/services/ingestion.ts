@@ -41,7 +41,7 @@ export async function uploadFiles(
 
     const response = await new Promise<IngestionResponse>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
-        xhr.open('POST', `${config.BACKEND_API_URL}/ingest`, true);
+        xhr.open('POST', `${config.BACKEND_API_URL}/api/v1/ingest`, true);
         
         // Set timeout for large file uploads (5 minutes)
         xhr.timeout = 5 * 60 * 1000; // 5 minutes in milliseconds
