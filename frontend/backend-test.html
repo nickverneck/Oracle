@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Backend Connectivity Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-result { margin: 10px 0; padding: 10px; border-radius: 5px; }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .info { background-color: #d1ecf1; color: #0c5460; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+        pre { background-color: #f8f9fa; padding: 10px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>Backend Connectivity Test</h1>
+    
+    <div>
+        <button onclick="testHealthEndpoint()">Test Health Endpoint</button>
+        <button onclick="testIngestEndpoint()">Test Ingest Endpoint</button>
+        <button onclick="testPostRequest()">Test POST Request</button>
+        <button onclick="clearResults()">Clear Results</button>
+    </div>
+    
+    <div id="results"></div>
+    
+    <script>
+        const BACKEND_API_URL = '/api/v1'; // Default value from config.ts
+        
+        function addResult(message, type = 'info') {
+            const resultsDiv = document.getElementById('results');
+            const resultDiv = document.createElement('div');
+            resultDiv.className = `test-result ${type}`;
+            resultDiv.innerHTML = `<strong>${new Date().toLocaleTimeString()}:</strong> ${message}`;
+            resultsDiv.appendChild(resultDiv);
+            resultsDiv.scrollTop = resultsDiv.scrollHeight;
+        }
+        
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+        }
+        
+        async function testHealthEndpoint() {
+            addResult('Testing health endpoint...', 'info');
+            
+            try {
+                const response = await fetch(`${BACKEND_API_URL}/health`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                addResult(`Health endpoint response: ${response.status} ${response.statusText}`, 
+                         response.ok ? 'success' : 'error');
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    addResult(`Health data: ${JSON.stringify(data, null, 2)}`, 'info');
+                }
+            } catch (error) {
+                addResult(`Network error: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testIngestEndpoint() {
+            addResult('Testing ingest endpoint OPTIONS...', 'info');
+            
+            try {
+                const response = await fetch(`${BACKEND_API_URL}/ingest`, {
+                    method: 'OPTIONS'
+                });
+                
+                addResult(`Ingest endpoint response: ${response.status} ${response.statusText}`, 
+                         response.ok ? 'success' : 'error');
+                
+                if (response.ok) {
+                    const allowHeader = response.headers.get('allow');
+                    if (allowHeader) {
+                        addResult(`Allowed methods: ${allowHeader}`, 'info');
+                    }
+                }
+            } catch (error) {
+                addResult(`Network error: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testPostRequest() {
+            addResult('Testing ingest endpoint POST (expected to fail without files)...', 'info');
+            
+            try {
+                const response = await fetch(`${BACKEND_API_URL}/ingest`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ test: 'data' })
+                });
+                
+                addResult(`POST request response: ${response.status} ${response.statusText}`, 
+                         response.ok ? 'success' : 'error');
+            } catch (error) {
+                addResult(`Network error: ${error.message}`, 'error');
+            }
+        }
+        
+        // Run health test automatically when page loads
+        window.addEventListener('load', () => {
+            addResult('Backend API URL: ' + BACKEND_API_URL, 'info');
+            testHealthEndpoint();
+        });
+    </script>
+</body>
+</html>
