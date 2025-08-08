@@ -29,6 +29,79 @@ logger = structlog.get_logger(__name__)
 class DocumentParser:
     """Handles parsing of different document formats."""
     
+    # Cache for EasyOCR Reader instances, keyed by tuple of language codes
+    _ocr_readers: Dict[Tuple[str, ...], Any] = {}
+
+    @classmethod
+    def _normalize_languages(cls, languages: List[str]) -> List[str]:
+        """Normalize language codes to EasyOCR expected codes."""
+        if not languages:
+            return ["en"]
+        norm = []
+        mapping = {
+            "zh": "ch_sim",
+            "zh-cn": "ch_sim",
+            "zh-hans": "ch_sim",
+            "zh-tw": "ch_tra",
+            "zh-hant": "ch_tra",
+            "pt-br": "pt",
+        }
+        for lang in languages:
+            code = lang.lower()
+            code = mapping.get(code, mapping.get(code.split("-")[0], code.split("-")[0]))
+            norm.append(code)
+        # Always include English as a helper language
+        if "en" not in norm:
+            norm.append("en")
+        # Preserve order but deduplicate
+        seen = set()
+        dedup: List[str] = []
+        for x in norm:
+            if x not in seen:
+                dedup.append(x)
+                seen.add(x)
+        return dedup
+
+    @classmethod
+    def _get_easyocr_reader(cls, languages: List[str], gpu: bool = False):
+        """Return a cached EasyOCR Reader for the given languages."""
+        langs = tuple(cls._normalize_languages(languages))
+        if langs in cls._ocr_readers:
+            return cls._ocr_readers[langs]
+        # Import lazily to avoid heavy import cost unless needed
+        import easyocr  # type: ignore
+        reader = easyocr.Reader(list(langs), gpu=gpu, verbose=False)
+        cls._ocr_readers[langs] = reader
+        return reader
+
+    @classmethod
+    async def parse_pdf_with_ocr(cls, content: bytes, languages: List[str]) -> str:
+        """OCR a PDF by rasterizing pages and running EasyOCR."""
+        if not content:
+            return ""
+        # Lazy imports to keep cold path light
+        import fitz  # PyMuPDF
+        import numpy as np  # type: ignore
+
+        text_blocks: List[str] = []
+        try:
+            doc = fitz.open(stream=content, filetype="pdf")
+            reader = cls._get_easyocr_reader(languages, gpu=False)
+            for page in doc:
+                # Render at higher DPI for better OCR
+                pix = page.get_pixmap(dpi=200, alpha=False)
+                img = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width, pix.n)
+                if pix.n == 4:
+                    img = img[:, :, :3]  # drop alpha
+                # Run OCR; paragraph groups lines logically
+                lines = reader.readtext(img, detail=0, paragraph=True)
+                if lines:
+                    text_blocks.append("\n".join([s for s in lines if isinstance(s, str) and s.strip()]))
+        except Exception as e:
+            raise ValueError(f"OCR failed: {str(e)}")
+
+        return "\n\n".join([b for b in text_blocks if b.strip()])
+
     @staticmethod
     async def parse_pdf(content: bytes) -> str:
         """Parse PDF content and extract text."""
@@ -37,7 +110,9 @@ class DocumentParser:
             text_content = []
             
             for page in pdf_reader.pages:
-                text_content.append(page.extract_text())
+                # Some pages may return None if they are images-only
+                extracted = page.extract_text()
+                text_content.append(extracted or "")
             
             return "\n".join(text_content)
         except Exception as e:
@@ -184,25 +259,71 @@ class IngestionService:
             checksum = await self.calculate_checksum(content)
             
             # Parse document
+            is_pdf = Path(file_info.filename).suffix.lower() == ".pdf" or (file_info.content_type or "").lower() == "application/pdf"
+            used_ocr = False
             try:
                 text_content = await self.parser.parse_document(file_info.filename, content)
             except ValueError as e:
-                return None, IngestionError(
-                    filename=file_info.filename,
-                    error_type="parsing_error",
-                    error_message=str(e),
-                    retry_possible=False,
-                    suggestions=["Check file format and integrity"]
-                )
+                if is_pdf:
+                    logger.warning(
+                        "PDF parse failed, attempting OCR fallback",
+                        filename=file_info.filename,
+                        error=str(e),
+                    )
+                    try:
+                        text_content = await self.parser.parse_pdf_with_ocr(content, [processing_options.language])
+                        used_ocr = True
+                    except Exception as ocr_e:
+                        return None, IngestionError(
+                            filename=file_info.filename,
+                            error_type="parsing_error",
+                            error_message=f"{str(e)}; OCR fallback failed: {str(ocr_e)}",
+                            retry_possible=False,
+                            suggestions=[
+                                "Check file format and integrity",
+                                "If scanned, ensure pages are legible (300+ DPI)",
+                            ],
+                        )
+                else:
+                    return None, IngestionError(
+                        filename=file_info.filename,
+                        error_type="parsing_error",
+                        error_message=str(e),
+                        retry_possible=False,
+                        suggestions=["Check file format and integrity"],
+                    )
             
             if not text_content.strip():
-                return None, IngestionError(
-                    filename=file_info.filename,
-                    error_type="empty_content",
-                    error_message="No text content found in document",
-                    retry_possible=False,
-                    suggestions=["Ensure document contains readable text"]
-                )
+                if is_pdf and not used_ocr:
+                    logger.info(
+                        "No text extracted from PDF, attempting OCR fallback",
+                        filename=file_info.filename,
+                    )
+                    try:
+                        text_content = await self.parser.parse_pdf_with_ocr(content, [processing_options.language])
+                        used_ocr = True
+                    except Exception as ocr_e:
+                        return None, IngestionError(
+                            filename=file_info.filename,
+                            error_type="empty_content",
+                            error_message=f"No text content found; OCR fallback failed: {str(ocr_e)}",
+                            retry_possible=False,
+                            suggestions=[
+                                "Ensure document contains readable text",
+                                "If scanned, use 300+ DPI and high contrast",
+                            ],
+                        )
+                if not text_content.strip():
+                    return None, IngestionError(
+                        filename=file_info.filename,
+                        error_type="empty_content",
+                        error_message="No text content found in document",
+                        retry_possible=False,
+                        suggestions=[
+                            "Ensure document contains readable text",
+                            "If scanned, use 300+ DPI and high contrast",
+                        ],
+                    )
             
             # Process text
             processor = TextProcessor(processing_options)
@@ -276,7 +397,13 @@ class IngestionService:
                 checksum=checksum,
             )
             
-            logger.info(f"Successfully processed {file_info.filename}: {len(chunks)} chunks, {len(entities)} entities")
+            logger.info(
+                "Successfully processed file",
+                filename=file_info.filename,
+                chunks=len(chunks),
+                entities=len(entities),
+                ocr_used=used_ocr,
+            )
             
             return processed_file, None
             

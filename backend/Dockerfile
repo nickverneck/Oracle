@@ -8,6 +8,8 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     curl \
     build-essential \
+    libgl1 \
+    libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install UV package manager
@@ -21,7 +23,8 @@ ENV FORCE_CUDA=0
 COPY pyproject.toml uv.lock* README.md ./
 
 # Install Python dependencies using UV
-RUN uv sync --frozen
+# Update lock and install Python deps
+RUN uv lock --upgrade && uv sync --frozen
 
 # Copy application code
 COPY . .
