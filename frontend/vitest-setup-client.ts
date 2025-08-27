@@ -4,7 +4,7 @@
 import '@testing-library/jest-dom';
 
 // Setup for Svelte component testing
-import { beforeEach } from 'vitest';
+import { beforeEach, expect } from 'vitest';
 
 beforeEach(() => {
 	// Clean up DOM after each test

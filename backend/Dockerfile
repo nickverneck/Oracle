@@ -8,6 +8,8 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     curl \
     build-essential \
+    libgl1 \
+    libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install UV package manager
@@ -21,7 +23,8 @@ ENV FORCE_CUDA=0
 COPY pyproject.toml uv.lock* README.md ./
 
 # Install Python dependencies using UV
-RUN uv sync --frozen
+# Update lock and install Python deps
+RUN uv lock --upgrade && uv sync --frozen
 
 # Copy application code
 COPY . .
@@ -39,4 +42,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:8080/api/v1/health || exit 1
 
 # Start the application
-CMD ["uv", "run", "uvicorn", "oracle.main:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["uv", "run", "uvicorn", "oracle.main:app", "--host", "0.0.0.0", "--port", "8080", "--timeout-keep-alive", "300", "--timeout-graceful-shutdown", "300", "--limit-concurrency", "1000", "--backlog", "2048"]
