@@ -10,6 +10,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import JSONResponse
+import httpx
 
 from oracle.models.ingestion import (
     IngestionRequest,
@@ -19,49 +20,16 @@ from oracle.models.ingestion import (
     IngestionError,
     FileUploadInfo,
 )
-from oracle.services.ingestion import IngestionService
-from oracle.services.knowledge import KnowledgeRetrievalService
 from oracle.core.config import get_settings
 import structlog
 
 logger = structlog.get_logger(__name__)
 router = APIRouter()
 
-# Global instances
-knowledge_service = None
-
-
-def get_knowledge_service() -> KnowledgeRetrievalService:
-    """Get knowledge retrieval service instance."""
-    global knowledge_service
-    if knowledge_service is None:
-        settings = get_settings()
-        config = {
-            "neo4j": {
-                "uri": getattr(settings, "NEO4J_URI", "bolt://localhost:7687"),
-                "username": getattr(settings, "NEO4J_USERNAME", "neo4j"),
-                "password": getattr(settings, "NEO4J_PASSWORD", "password")
-            },
-            "chromadb": {
-                "host": getattr(settings, "CHROMADB_HOST", "localhost"),
-                "port": getattr(settings, "CHROMADB_PORT", 8002)
-            },
-            "retrieval": {
-                "max_graph_results": 5,
-                "max_vector_results": 5,
-                "similarity_threshold": 0.7
-            }
-        }
-        knowledge_service = KnowledgeRetrievalService(config)
-    return knowledge_service
-
-
-def get_ingestion_service(
-    knowledge_service: KnowledgeRetrievalService = Depends(get_knowledge_service)
-) -> IngestionService:
-    """Dependency to get ingestion service instance."""
-    return IngestionService(knowledge_service=knowledge_service)
-
+def get_ingestion_service_url() -> str:
+    """Get the ingestion service URL from settings."""
+    settings = get_settings()
+    return getattr(settings, 'INGESTION_SERVICE_URL', 'http://oracle-ingestion-service:8081')
 
 @router.post(
     "/",
@@ -77,15 +45,14 @@ async def ingest_documents(
     extract_entities: bool = Form(True, description="Whether to extract entities for knowledge graph"),
     create_embeddings: bool = Form(True, description="Whether to create vector embeddings"),
     language: str = Form("en", description="Document language code"),
-    overwrite_existing: bool = Form(False, description="Whether to overwrite existing documents"),
     batch_id: Optional[str] = Form(None, description="Optional batch identifier"),
-    ingestion_service: IngestionService = Depends(get_ingestion_service),
+    ingestion_service_url: str = Depends(get_ingestion_service_url),
 ) -> IngestionResponse:
     """
-    Ingest multiple documents for processing into knowledge graph and vector database.
+    Ingest multiple documents by forwarding to the Ingestion Microservice.
     
     Supports PDF, TXT, DOCX, DOC, and MD file formats.
-    Files are processed in parallel with comprehensive error handling.
+    Files are processed by the dedicated ingestion service.
     """
     start_time = time.time()
     
@@ -107,93 +74,62 @@ async def ingest_documents(
             detail="Too many files in batch. Maximum 50 files allowed."
         )
     
-    # Create processing options
     try:
-        processing_options = ProcessingOptions(
-            chunk_size=chunk_size,
-            chunk_overlap=chunk_overlap,
-            extract_entities=extract_entities,
-            create_embeddings=create_embeddings,
-            language=language,
-        )
-    except ValueError as e:
+        # Forward request to ingestion microservice
+        async with httpx.AsyncClient(timeout=300.0) as client:  # 5 minute timeout
+            # Prepare files for upload
+            files_data = []
+            for file in files:
+                content = await file.read()
+                await file.seek(0)  # Reset file pointer
+                files_data.append(('files', (file.filename, content, file.content_type)))
+            
+            # Prepare form data
+            data = {
+                'language': language,
+                'chunk_size': str(chunk_size),
+                'chunk_overlap': str(chunk_overlap),
+                'extract_entities': str(extract_entities).lower(),
+                'create_embeddings': str(create_embeddings).lower(),
+            }
+            
+            if batch_id:
+                data['batch_id'] = batch_id
+            
+            # Make request to ingestion service
+            response = await client.post(
+                f"{ingestion_service_url}/ingest",
+                files=files_data,
+                data=data
+            )
+            
+            if response.status_code == 200:
+                result = response.json()
+                processing_time = time.time() - start_time
+                result['processing_time'] = processing_time
+                logger.info(
+                    f"Ingestion completed: {result['successful_files']}/{result['total_files']} files processed successfully"
+                )
+                return IngestionResponse(**result)
+            else:
+                logger.error(f"Ingestion service returned error: {response.status_code} - {response.text}")
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail=f"Ingestion service error: {response.text}"
+                )
+                
+    except httpx.RequestError as e:
+        logger.error(f"Failed to connect to ingestion service: {str(e)}", exc_info=True)
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Invalid processing options: {str(e)}"
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Ingestion service is unavailable"
         )
-    
-    # Validate file metadata
-    file_infos = []
-    for file in files:
-        try:
-            file_info = FileUploadInfo(
-                filename=file.filename or "unknown",
-                content_type=file.content_type or "application/octet-stream",
-                size=file.size or 0,
-            )
-            file_infos.append(file_info)
-        except ValueError as e:
-            logger.warning(f"Invalid file {file.filename}: {str(e)}")
-            return IngestionResponse(
-                status="failed",
-                total_files=len(files),
-                successful_files=0,
-                failed_files=len(files),
-                errors=[
-                    IngestionError(
-                        filename=file.filename or "unknown",
-                        error_type="validation_error",
-                        error_message=str(e),
-                        retry_possible=False,
-                        suggestions=["Check file format and size limits"]
-                    )
-                ],
-                processing_time=time.time() - start_time,
-                batch_id=batch_id,
-            )
-    
-    logger.info(f"Starting ingestion of {len(files)} files with batch_id: {batch_id}")
-    
-    # Process files
-    try:
-        result = await ingestion_service.process_files(
-            files=files,
-            file_infos=file_infos,
-            processing_options=processing_options,
-            overwrite_existing=overwrite_existing,
-            batch_id=batch_id,
-        )
-        
-        processing_time = time.time() - start_time
-        result.processing_time = processing_time
-        
-        logger.info(
-            f"Ingestion completed: {result.successful_files}/{result.total_files} files processed successfully"
-        )
-        
-        return result
-        
     except Exception as e:
         logger.error(f"Ingestion failed with unexpected error: {str(e)}", exc_info=True)
-        
-        return IngestionResponse(
-            status="failed",
-            total_files=len(files),
-            successful_files=0,
-            failed_files=len(files),
-            errors=[
-                IngestionError(
-                    filename="batch",
-                    error_type="system_error",
-                    error_message=str(e),
-                    retry_possible=True,
-                    suggestions=["Check system logs", "Retry the operation"]
-                )
-            ],
-            processing_time=time.time() - start_time,
-            batch_id=batch_id,
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to process ingestion request"
         )
-
 
 @router.get(
     "/status/{batch_id}",
@@ -202,16 +138,33 @@ async def ingest_documents(
 )
 async def get_batch_status(
     batch_id: str,
-    ingestion_service: IngestionService = Depends(get_ingestion_service),
+    ingestion_service_url: str = Depends(get_ingestion_service_url),
 ) -> JSONResponse:
-    """Get the status of a document ingestion batch."""
+    """Get the status of a document ingestion batch from the ingestion service."""
     try:
-        status_info = await ingestion_service.get_batch_status(batch_id)
-        return JSONResponse(content=status_info)
-    except ValueError as e:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{ingestion_service_url}/status/{batch_id}"
+            )
+            
+            if response.status_code == 200:
+                return JSONResponse(content=response.json())
+            elif response.status_code == 404:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Batch not found"
+                )
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail=f"Ingestion service error: {response.text}"
+                )
+                
+    except httpx.RequestError as e:
+        logger.error(f"Failed to connect to ingestion service: {str(e)}", exc_info=True)
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e)
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Ingestion service is unavailable"
         )
     except Exception as e:
         logger.error(f"Failed to get batch status: {str(e)}", exc_info=True)
@@ -219,7 +172,6 @@ async def get_batch_status(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve batch status"
         )
-
 
 @router.get(
     "/supported-formats",

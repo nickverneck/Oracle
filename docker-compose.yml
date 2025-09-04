@@ -18,13 +18,13 @@ services:
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://localhost:11434}
       - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
-      - OCR_SERVICE_URL=http://oracle-ocr-service:8081
+      - INGESTION_SERVICE_URL=http://oracle-ingestion-service:8081
     depends_on:
       oracle-neo4j:
         condition: service_healthy
       oracle-chromadb:
         condition: service_started
-      oracle-ocr-service:
+      oracle-ingestion-service:
         condition: service_started
     networks:
       - oracle-network
@@ -38,14 +38,14 @@ services:
       retries: 3
       start_period: 40s
 
-  oracle-ocr-service:
+  oracle-ingestion-service:
     build:
-      context: ./backend/ocr-service
+      context: ./backend/ingestion-service
       dockerfile: Dockerfile
       args:
         - CUDA_ENABLED=${CUDA_ENABLED:-false}
         - MPS_ENABLED=${MPS_ENABLED:-false}
-    container_name: oracle-ocr-service
+    container_name: oracle-ingestion-service
     ports:
       - "8081:8081"
     environment:
@@ -53,7 +53,7 @@ services:
     networks:
       - oracle-network
     volumes:
-      - ocr-models:/models
+      - ingestion-models:/models
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
       interval: 30s
