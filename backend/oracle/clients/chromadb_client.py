@@ -140,7 +140,7 @@ class ChromaDBClient:
                 lambda: self.client.get_or_create_collection(
                     name=name,
                     embedding_function=self.embedding_function,
-                    metadata=metadata or {}
+                    metadata=metadata or {"created_by": "oracle"}
                 )
             )
             return collection
