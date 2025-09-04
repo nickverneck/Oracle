@@ -12,11 +12,15 @@ services:
       - NODE_ENV=development
       - LOG_LEVEL=DEBUG
       - RELOAD=true
+      - OCR_SERVICE_URL=http://oracle-ocr-service:8081
     volumes:
       - ./backend:/app
       - /app/.venv  # Preserve the virtual environment
       - backend-cache:/root/.cache
     command: ["uv", "run", "uvicorn", "oracle.main:app", "--host", "0.0.0.0", "--port", "8080", "--reload"]
+    depends_on:
+      oracle-ocr-service:
+        condition: service_started
 
   oracle-frontend:
     build:
@@ -32,6 +36,20 @@ services:
     ports:
       - "5173:5173"  # Vite dev server port
 
+  oracle-ocr-service:
+    build:
+      context: ./backend/ocr-service
+      dockerfile: Dockerfile
+      args:
+        - CUDA_ENABLED=${CUDA_ENABLED:-false}
+        - MPS_ENABLED=${MPS_ENABLED:-false}
+    environment:
+      - LOG_LEVEL=DEBUG
+    volumes:
+      - ./backend/ocr-service:/app
+      - ocr-models:/models
+    command: ["uv", "run", "uvicorn", "ocr_service:app", "--host", "0.0.0.0", "--port", "8081", "--reload"]
+
   # Reduce resource requirements for development
   oracle-neo4j:
     environment:
@@ -44,3 +62,28 @@ services:
   #   deploy:
   #     resources:
   #       reservations: {}  # Remove GPU requirements
+
+networks:
+  oracle-network:
+    driver: bridge
+    name: oracle-network
+
+volumes:
+  neo4j-data:
+    name: oracle-neo4j-data
+  neo4j-logs:
+    name: oracle-neo4j-logs
+  neo4j-import:
+    name: oracle-neo4j-import
+  neo4j-plugins:
+    name: oracle-neo4j-plugins
+  chromadb-data:
+    name: oracle-chromadb-data
+  vllm-cache:
+    name: oracle-vllm-cache
+  backend-cache:
+    name: oracle-backend-cache
+  frontend-node-modules:
+    name: oracle-frontend-node-modules
+  ocr-models:
+    name: oracle-ocr-models

@@ -8,19 +8,11 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     curl \
     build-essential \
-    libgl1 \
-    libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install UV package manager
 RUN pip install uv
 
-# Set environment variables for CPU-only packages
-ARG CUDA_ENABLED=false
-RUN if [ "$CUDA_ENABLED" = "false" ]; then \
-    export TORCH_INDEX_URL=https://download.pytorch.org/whl/cpu && \
-    export FORCE_CUDA=0 ; \
-    fi
 
 # Copy dependency files and README
 COPY pyproject.toml uv.lock* README.md ./

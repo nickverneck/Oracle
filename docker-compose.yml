@@ -18,10 +18,13 @@ services:
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://localhost:11434}
       - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - OCR_SERVICE_URL=http://oracle-ocr-service:8081
     depends_on:
       oracle-neo4j:
         condition: service_healthy
       oracle-chromadb:
+        condition: service_started
+      oracle-ocr-service:
         condition: service_started
     networks:
       - oracle-network
@@ -34,6 +37,29 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+
+  oracle-ocr-service:
+    build:
+      context: ./backend/ocr-service
+      dockerfile: Dockerfile
+      args:
+        - CUDA_ENABLED=${CUDA_ENABLED:-false}
+        - MPS_ENABLED=${MPS_ENABLED:-false}
+    container_name: oracle-ocr-service
+    ports:
+      - "8081:8081"
+    environment:
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    networks:
+      - oracle-network
+    volumes:
+      - ocr-models:/models
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
   oracle-frontend:
     build:
@@ -151,3 +177,5 @@ volumes:
     name: oracle-backend-cache
   frontend-node-modules:
     name: oracle-frontend-node-modules
+  ocr-models:
+    name: oracle-ocr-models

@@ -1,65 +1,102 @@
-# VLLM Serving Implementation
+# OCR Microservice Implementation
 
 ## Overview
 
-The backend codebase is designed to support VLLM as an optional, separate service. This separation is achieved through a containerized approach using Docker and Docker Compose.
+This document describes the implementation of separating the EasyOCR functionality into its own microservice to reduce the size of the main backend container and provide better flexibility for users who may not need OCR capabilities.
 
-## Architecture
+## Changes Made
 
-The key components of the VLLM integration are:
+### 1. OCR Microservice Creation
 
-- **`oracle-backend` service**: The main backend application, which runs in its own Docker container. It does not have the `vllm` library installed directly.
-- **`oracle-vllm` service**: A dedicated service for VLLM, defined in `docker-compose.yml`. This service is based on the `vllm/vllm-openai:latest` image and is responsible for serving the VLLM model. It is commented out by default, making it optional.
-- **Communication**: The `oracle-backend` service communicates with the `oracle-vllm` service via HTTP requests. The `VLLM_BASE_URL` environment variable in the `oracle-backend` service is used to configure the URL of the VLLM service.
+A new microservice has been created in `backend/ocr-service/` with the following components:
 
-## Code-level Implementation
+- **Dockerfile**: A multi-stage Dockerfile that:
+  - Downloads OCR models during the build process to cache them in Docker layers
+  - Supports both CPU-only and CUDA-enabled PyTorch installations
+  - Supports MPS (Metal Performance Shaders) for Mac users
+  - Installs only the necessary dependencies for OCR processing
 
-- **`VLLMClient` (`backend/oracle/clients/vllm_client.py`)**: This class implements the client for the VLLM service. It sends requests to the VLLM server using an OpenAI-compatible API.
-- **`ModelManager` (`backend/oracle/clients/model_manager.py`)**: This class manages multiple model providers, including VLLM. It has a fallback mechanism that allows it to try other providers if the VLLM service is unavailable.
+- **ocr_service.py**: A FastAPI application that:
+  - Provides an endpoint for PDF OCR processing
+  - Manages EasyOCR reader instances with caching
+  - Supports multiple languages
+  - Includes health check endpoints
+  - Handles GPU/CPU configuration
 
-## How to Enable VLLM
+### 2. Backend Container Optimization
 
-To enable VLLM, the `oracle-vllm` service in the `docker-compose.yml` file needs to be uncommented. This will start the VLLM service in a separate container. The `oracle-backend` service will then be able to communicate with it.
+The main backend container has been optimized by:
 
-## Dependency Analysis
+- Removing EasyOCR, PyMuPDF, and NumPy dependencies from `pyproject.toml`
+- Removing the local EasyOCR implementation from `DocumentParser`
+- Updating the Dockerfile to remove system dependencies only needed for OCR (libgl1, libglib2.0-0)
 
-### VLLM Dependencies
+This reduces the container size significantly by eliminating CUDA, PyTorch, and other heavy dependencies that are only needed for OCR processing.
 
-There are no dependencies that need to be removed from the backend's `pyproject.toml` or Dockerfiles. The VLLM dependency is already isolated to the `oracle-vllm` service in the `docker-compose.yml` file.
+### 3. Service Communication
 
-### PyTorch Dependency
+The backend now communicates with the OCR microservice via HTTP requests:
 
-PyTorch is installed in the backend Docker container because it is a dependency of the following libraries:
+- Added `OCR_SERVICE_URL` environment variable configuration
+- Replaced local OCR processing with HTTP calls to the OCR service
+- Implemented proper error handling for service unavailability
 
-- **`sentence-transformers`**: Used for generating text embeddings, which are essential for semantic search.
-- **`easyocr`**: Used for extracting text from images and scanned PDFs during data ingestion.
+### 4. Docker Compose Updates
 
-The `Dockerfile` is configured to install the CPU-only version of PyTorch to minimize the image size.
+Updated both `docker-compose.yml` and `docker-compose.dev.yml` to:
 
-## VLLM Client vs. OpenAI Client
+- Include the new OCR service
+- Configure service dependencies
+- Add volume for model persistence
+- Support CUDA/MPS configuration via build arguments
 
-A separate `VLLMClient` is necessary because the existing `OpenAIClient` is not compatible with the specific API exposed by the VLLM service. The key differences are:
+## Configuration Options
 
-- **API Endpoint**: `VLLMClient` uses the `/v1/chat/completions` endpoint, while `OpenAIClient` uses the `/completions` endpoint.
-- **Payload Structure**: `VLLMClient` sends a `messages` array (for chat models), while `OpenAIClient` sends a `prompt` string (for completion models).
-- **Response Parsing**: The clients parse different response structures.
+### Environment Variables
 
-While it would be possible to create a more generic OpenAI-compatible client in the future, the current implementation requires a separate `VLLMClient`.
+- `CUDA_ENABLED` (default: false): Set to "true" to enable CUDA support in the OCR service
+- `MPS_ENABLED` (default: false): Set to "true" to enable MPS support for Mac users
+- `OCR_SERVICE_URL` (default: http://oracle-ocr-service:8081): URL for the OCR microservice
 
-## Backend Image Size
+### Docker Build Arguments
 
-The backend Docker image is approximately 16GB, which is excessively large. The primary reasons for this are:
+When building the OCR service, you can specify:
 
-- **Large Python Dependencies**: PyTorch, even the CPU-only version, is a large library. Other dependencies of `easyocr` and `sentence-transformers` also contribute to the size.
-- **Downloaded Models**: The `easyocr` and `sentence-transformers` libraries download large pre-trained models during the Docker build process. These models are then included in the image, significantly increasing its size.
+```bash
+# For CUDA support
+docker build --build-arg CUDA_ENABLED=true -t ocr-service .
 
-To address this, a multi-stage Docker build should be implemented. This would involve:
+# For MPS support (Mac users)
+docker build --build-arg MPS_ENABLED=true -t ocr-service .
+```
 
-1.  A **build stage** where dependencies are installed and models are downloaded.
-2.  A **runtime stage** that copies only the necessary application code, Python environment, and downloaded models from the build stage.
+## Model Caching
 
-This approach would result in a much smaller final image, as it would not include build-time dependencies or the entire layer history of the model downloads.
+The OCR service Dockerfile uses a multi-stage build approach:
 
-## Conclusion
+1. First stage downloads and caches OCR models
+2. Second stage copies the cached models
+3. This ensures models are part of the Docker layer cache and don't need to be downloaded on each container start
 
-The current implementation already separates the VLLM serving into a different container. VLLM is treated as an optional service, and the backend is designed to handle its availability gracefully. No dependencies need to be removed from the main backend, and the separate `VLLMClient` is necessary for now. The large backend image size is a significant issue that should be addressed by implementing a multi-stage Docker build.
+## Benefits
+
+1. **Reduced Container Size**: Main backend container is much smaller without CUDA/PyTorch dependencies
+2. **Flexibility**: Users can choose whether to deploy the OCR service based on their needs
+3. **Performance**: OCR processing is isolated and won't affect main backend performance
+4. **Scalability**: OCR service can be scaled independently
+5. **Hardware Support**: Better support for different hardware configurations (CPU/CUDA/MPS)
+
+## Usage
+
+To use the OCR functionality:
+
+1. Ensure the OCR service is running alongside the main backend
+2. The backend will automatically make HTTP calls to the OCR service when processing scanned PDFs
+3. Users can disable the OCR service entirely if not needed by not deploying it
+
+## Future Improvements
+
+1. Add authentication between services
+2. Implement circuit breaker pattern for service resilience
+3. Add metrics and monitoring for the OCR service
+4. Support additional OCR engines beyond EasyOCR
