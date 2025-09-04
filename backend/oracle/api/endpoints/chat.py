@@ -101,10 +101,11 @@ async def chat(
     start_time = time.time()
     
     try:
+        user_message = request.messages[-1]["content"]
         logger.info(
             "Processing chat request",
-            message_length=len(request.message),
-            model_preference=request.model_preference,
+            message_length=len(user_message),
+            provider=request.provider.name,
             include_sources=request.include_sources
         )
         
@@ -123,8 +124,8 @@ async def chat(
         conversation_mgr.add_message(
             conversation_id=conversation_id,
             role="user",
-            content=request.message,
-            metadata={"model_preference": request.model_preference}
+            content=user_message,
+            metadata={"provider": request.provider.dict()}
         )
         
         # Retrieve knowledge sources if requested
@@ -132,7 +133,7 @@ async def chat(
         if request.include_sources:
             try:
                 sources = await knowledge_svc.retrieve_knowledge(
-                    query=request.message,
+                    query=user_message,
                     max_sources=request.max_sources,
                     include_graph=True,
                     include_vector=True
@@ -145,7 +146,7 @@ async def chat(
         # Build context-aware prompt
         context_prompt = conversation_mgr.build_context_prompt(
             conversation_id=conversation_id,
-            current_message=request.message,
+            current_message=user_message,
             include_history=True,
             max_context_messages=5
         )
@@ -163,7 +164,8 @@ async def chat(
                 prompt=context_prompt,
                 max_tokens=1000,
                 temperature=0.7,
-                preferred_provider=request.model_preference
+                preferred_provider=request.provider.type,
+                provider_config=request.provider.config.dict()
             )
             
             logger.info(

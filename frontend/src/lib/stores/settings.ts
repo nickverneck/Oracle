@@ -52,6 +52,17 @@ const defaultSettings: Settings = {
 				apiKey: '',
 				model: 'gemini-pro'
 			}
+		},
+		{
+			id: '4',
+			name: 'OpenAI Compatible',
+			type: 'openai',
+			enabled: false,
+			config: {
+				url: 'http://localhost:1234/v1',
+				apiKey: '',
+				model: 'gpt-4'
+			}
 		}
 	],
 	systemPrompt: 'You are Oracle, a helpful AI assistant. Provide accurate, concise, and helpful responses to user queries.',
