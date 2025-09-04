@@ -25,7 +25,7 @@ services:
   oracle-frontend:
     build:
       context: ./frontend
-      dockerfile: Dockerfile.dev
+      dockerfile: Dockerfile
     environment:
       - NODE_ENV=development
       - VITE_BACKEND_URL=http://localhost:8080
@@ -35,6 +35,12 @@ services:
     command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
     ports:
       - "5173:5173"  # Vite dev server port
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5173/robots.txt"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   oracle-ingestion-service:
     build:

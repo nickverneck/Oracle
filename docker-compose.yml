@@ -67,7 +67,7 @@ services:
       dockerfile: Dockerfile
     container_name: oracle-frontend
     ports:
-      - "${FRONTEND_PORT:-3000}:3000"
+      - "${FRONTEND_PORT:-5173}:5173"
     environment:
       - BACKEND_URL=http://oracle-backend:8080
       - VITE_BACKEND_URL=http://oracle-backend:8080
@@ -80,6 +80,12 @@ services:
     volumes:
       - ./frontend:/app
       - frontend-node-modules:/app/node_modules
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/robots.txt"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   # oracle-vllm:
   #   image: vllm/vllm-openai:latest
@@ -177,5 +183,5 @@ volumes:
     name: oracle-backend-cache
   frontend-node-modules:
     name: oracle-frontend-node-modules
-  ocr-models:
-    name: oracle-ocr-models
+  ingestion-models:
+    name: oracle-ingestion-models
