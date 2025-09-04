@@ -6,6 +6,8 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile.dev
+      args:
+        - CUDA_ENABLED=${CUDA_ENABLED:-false}
     environment:
       - NODE_ENV=development
       - LOG_LEVEL=DEBUG

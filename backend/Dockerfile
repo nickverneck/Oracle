@@ -16,8 +16,11 @@ RUN apt-get update && apt-get install -y \
 RUN pip install uv
 
 # Set environment variables for CPU-only packages
-ENV TORCH_INDEX_URL=https://download.pytorch.org/whl/cpu
-ENV FORCE_CUDA=0
+ARG CUDA_ENABLED=false
+RUN if [ "$CUDA_ENABLED" = "false" ]; then \
+    export TORCH_INDEX_URL=https://download.pytorch.org/whl/cpu && \
+    export FORCE_CUDA=0 ; \
+    fi
 
 # Copy dependency files and README
 COPY pyproject.toml uv.lock* README.md ./

@@ -1,42 +1,65 @@
-# OpenAI-Compatible Provider Implementation Plan
+# VLLM Serving Implementation
 
-This document outlines the plan to add support for OpenAI-compatible APIs (like LM Studio) to the frontend, ensuring that these requests are routed through the backend to leverage the RAG pipeline.
+## Overview
 
-## 1. Update the Settings Store
+The backend codebase is designed to support VLLM as an optional, separate service. This separation is achieved through a containerized approach using Docker and Docker Compose.
 
-File: `frontend/src/lib/stores/settings.ts`
+## Architecture
 
-- **Add a new provider type:** The `Provider` type definition will be updated to include `'openai'` as a possible value for the `type` property.
-- **Add a new default provider:** A new provider configuration for "OpenAI Compatible" will be added to the `defaultSettings` object. This will include:
-  - `id`: A unique identifier (e.g., `'openai-compatible'`).
-  - `name`: `'OpenAI Compatible'`.
-  - `type`: `'openai'`.
-  - `enabled`: `false`.
-  - `config`: An object with `url` and `apiKey` fields, both initially empty.
+The key components of the VLLM integration are:
 
-## 2. Update the Settings UI
+- **`oracle-backend` service**: The main backend application, which runs in its own Docker container. It does not have the `vllm` library installed directly.
+- **`oracle-vllm` service**: A dedicated service for VLLM, defined in `docker-compose.yml`. This service is based on the `vllm/vllm-openai:latest` image and is responsible for serving the VLLM model. It is commented out by default, making it optional.
+- **Communication**: The `oracle-backend` service communicates with the `oracle-vllm` service via HTTP requests. The `VLLM_BASE_URL` environment variable in the `oracle-backend` service is used to configure the URL of the VLLM service.
 
-File: `frontend/src/routes/settings/+page.svelte`
+## Code-level Implementation
 
-- **Create a new UI section:** A new `{:else if provider.type === 'openai'}` block will be added to the UI to render the settings for the new provider type.
-- **Input Fields:** This section will contain two input fields:
-  - **API URL:** A text input for the user to enter the URL of their OpenAI-compatible API.
-  - **API Key:** A password input for the API key, with a show/hide toggle button for better user experience, similar to the existing Gemini API key field.
+- **`VLLMClient` (`backend/oracle/clients/vllm_client.py`)**: This class implements the client for the VLLM service. It sends requests to the VLLM server using an OpenAI-compatible API.
+- **`ModelManager` (`backend/oracle/clients/model_manager.py`)**: This class manages multiple model providers, including VLLM. It has a fallback mechanism that allows it to try other providers if the VLLM service is unavailable.
 
-## 3. Update the Chat Service
+## How to Enable VLLM
 
-File: `frontend/src/lib/services/chat.ts`
+To enable VLLM, the `oracle-vllm` service in the `docker-compose.yml` file needs to be uncommented. This will start the VLLM service in a separate container. The `oracle-backend` service will then be able to communicate with it.
 
-- **Create `sendToBackend` function:** A new private async function `sendToBackend` will be created. This function will be responsible for sending chat messages to the backend's `/api/v1/chat` endpoint.
-- **Modify `sendMessage` function:** The main `sendMessage` function will be updated to handle the new `'openai'` provider type. A `switch` statement will be used to determine which function to call based on the active provider's type.
-  - If the provider is `'openai'`, `sendToBackend` will be called.
-  - The existing `sendToOllama` and `sendToGemini` functions will remain for direct-to-LLM communication.
-- **`sendToBackend` Implementation:** This function will accept the `messages` array and the active provider's configuration. It will then make a `POST` request to the backend's `/api/v1/chat` endpoint, sending a JSON payload containing the messages and the provider configuration.
+## Dependency Analysis
 
-## 4. Update the Backend Chat Endpoint
+### VLLM Dependencies
 
-File: `backend/oracle/api/endpoints/chat.py` and related files.
+There are no dependencies that need to be removed from the backend's `pyproject.toml` or Dockerfiles. The VLLM dependency is already isolated to the `oracle-vllm` service in the `docker-compose.yml` file.
 
-- **Review and Update `ChatRequest` model:** The `ChatRequest` model in `backend/oracle/models/chat.py` will be reviewed and updated to include the provider configuration sent from the frontend.
-- **Update `ChatService`:** The `ChatService` in `backend/oracle/services/conversation.py` will be modified to handle the new `'openai'` provider type. It will use the provider configuration from the request to make the final call to the specified OpenAI-compatible LLM *after* the RAG pipeline has been executed.
-- **Dynamic LLM Client:** The backend will need a mechanism to dynamically instantiate a client for the OpenAI-compatible API based on the provided URL and API key. This might involve creating a new client class similar to the existing `GeminiClient` or `OllamaClient`.
+### PyTorch Dependency
+
+PyTorch is installed in the backend Docker container because it is a dependency of the following libraries:
+
+- **`sentence-transformers`**: Used for generating text embeddings, which are essential for semantic search.
+- **`easyocr`**: Used for extracting text from images and scanned PDFs during data ingestion.
+
+The `Dockerfile` is configured to install the CPU-only version of PyTorch to minimize the image size.
+
+## VLLM Client vs. OpenAI Client
+
+A separate `VLLMClient` is necessary because the existing `OpenAIClient` is not compatible with the specific API exposed by the VLLM service. The key differences are:
+
+- **API Endpoint**: `VLLMClient` uses the `/v1/chat/completions` endpoint, while `OpenAIClient` uses the `/completions` endpoint.
+- **Payload Structure**: `VLLMClient` sends a `messages` array (for chat models), while `OpenAIClient` sends a `prompt` string (for completion models).
+- **Response Parsing**: The clients parse different response structures.
+
+While it would be possible to create a more generic OpenAI-compatible client in the future, the current implementation requires a separate `VLLMClient`.
+
+## Backend Image Size
+
+The backend Docker image is approximately 16GB, which is excessively large. The primary reasons for this are:
+
+- **Large Python Dependencies**: PyTorch, even the CPU-only version, is a large library. Other dependencies of `easyocr` and `sentence-transformers` also contribute to the size.
+- **Downloaded Models**: The `easyocr` and `sentence-transformers` libraries download large pre-trained models during the Docker build process. These models are then included in the image, significantly increasing its size.
+
+To address this, a multi-stage Docker build should be implemented. This would involve:
+
+1.  A **build stage** where dependencies are installed and models are downloaded.
+2.  A **runtime stage** that copies only the necessary application code, Python environment, and downloaded models from the build stage.
+
+This approach would result in a much smaller final image, as it would not include build-time dependencies or the entire layer history of the model downloads.
+
+## Conclusion
+
+The current implementation already separates the VLLM serving into a different container. VLLM is treated as an optional service, and the backend is designed to handle its availability gracefully. No dependencies need to be removed from the main backend, and the separate `VLLMClient` is necessary for now. The large backend image size is a significant issue that should be addressed by implementing a multi-stage Docker build.

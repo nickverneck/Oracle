@@ -3,6 +3,8 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      args:
+        - CUDA_ENABLED=${CUDA_ENABLED:-false}
     container_name: oracle-backend
     ports:
       - "${BACKEND_PORT:-8080}:8080"
