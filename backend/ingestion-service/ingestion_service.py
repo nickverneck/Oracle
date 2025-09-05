@@ -16,6 +16,7 @@ import fitz  # PyMuPDF
 import pypdf
 from docx import Document as DocxDocument
 from fastapi import FastAPI, File, Form, UploadFile, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import structlog
@@ -28,6 +29,15 @@ app = FastAPI(
     title="Oracle Ingestion Service",
     description="Microservice for document ingestion and processing",
     version="1.0.0"
+)
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://localhost:5173"],  # Specific origins
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods
+    allow_headers=["*"],  # Allows all headers
 )
 
 # Global OCR reader cache

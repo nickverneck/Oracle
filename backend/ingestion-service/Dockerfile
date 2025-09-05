@@ -28,10 +28,12 @@ RUN if [ "$CUDA_ENABLED" = "true" ]; then \
 # Create directory for models
 RUN mkdir -p /models
 
-# Install EasyOCR and download models
-# We use a minimal requirements file with just what we need for OCR
-RUN echo 'easyocr>=1.7.1' > ocr-requirements.txt && \
-    uv pip install --no-cache-dir -r ocr-requirements.txt
+# Install PyTorch and EasyOCR for model downloading
+# We use a minimal requirements file with just what we need for OCR model download
+RUN echo 'torch>=2.0.0' > download-requirements.txt && \
+    echo 'torchvision>=0.15.0' >> download-requirements.txt && \
+    echo 'easyocr>=1.7.1' >> download-requirements.txt && \
+    uv pip install --system --no-cache-dir -r download-requirements.txt
 
 # Download default models (English and common languages)
 # This ensures models are cached in the Docker layer
@@ -61,6 +63,7 @@ ARG MPS_ENABLED=false
 # Configure PyTorch installation based on target device
 RUN if [ "$CUDA_ENABLED" = "true" ]; then \
     echo "Installing CUDA-enabled PyTorch"; \
+    export TORCH_INDEX_URL=https://download.pytorch.org/whl/cu118; \
     elif [ "$MPS_ENABLED" = "true" ]; then \
     echo "Installing MPS-enabled PyTorch (default)"; \
     else \
@@ -73,7 +76,7 @@ RUN if [ "$CUDA_ENABLED" = "true" ]; then \
 COPY requirements.txt ./
 
 # Install Python dependencies
-RUN uv pip install --no-cache-dir -r requirements.txt
+RUN uv pip install --system --no-cache-dir -r requirements.txt
 
 # Copy models from the first stage
 COPY --from=model-downloader /models /models

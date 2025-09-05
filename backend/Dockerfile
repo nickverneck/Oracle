@@ -13,13 +13,11 @@ RUN apt-get update && apt-get install -y \
 # Install UV package manager
 RUN pip install uv
 
-
 # Copy dependency files and README
 COPY pyproject.toml uv.lock* README.md ./
 
-# Install Python dependencies using UV
-# Update lock and install Python deps
-RUN uv lock --upgrade && uv sync --frozen
+# Install Python dependencies using UV directly with --system flag
+RUN uv pip install --system --no-cache-dir -e .
 
 # Copy application code
 COPY . .
@@ -37,4 +35,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:8080/api/v1/health || exit 1
 
 # Start the application
-CMD ["uv", "run", "uvicorn", "oracle.main:app", "--host", "0.0.0.0", "--port", "8080", "--timeout-keep-alive", "300", "--timeout-graceful-shutdown", "300", "--limit-concurrency", "1000", "--backlog", "2048"]
+CMD ["uvicorn", "oracle.main:app", "--host", "0.0.0.0", "--port", "8080", "--timeout-keep-alive", "300", "--timeout-graceful-shutdown", "300", "--limit-concurrency", "1000", "--backlog", "2048"]
