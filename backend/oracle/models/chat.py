@@ -32,6 +32,20 @@ class Source(BaseModel):
     )
 
 
+class ProviderConfig(BaseModel):
+    apiKey: Optional[str] = None
+    url: Optional[str] = None
+    model: Optional[str] = None
+
+
+class Provider(BaseModel):
+    id: str
+    name: str
+    type: Literal['llvm', 'ollama', 'gemini', 'openai']
+    enabled: bool
+    config: ProviderConfig
+
+
 class ChatRequest(BaseModel):
     """Model for incoming chat requests."""
     
@@ -41,19 +55,17 @@ class ChatRequest(BaseModel):
         protected_namespaces=()
     )
     
-    message: str = Field(
-        ..., 
-        min_length=1,
-        max_length=4000,
-        description="User's chat message"
+    messages: List[Dict[str, str]] = Field(
+        ...,
+        description="A list of messages in the conversation."
+    )
+    provider: Provider = Field(
+        ...,
+        description="The provider to use for the chat."
     )
     context: Optional[Dict[str, Any]] = Field(
         default=None,
         description="Optional context for the conversation"
-    )
-    model_preference: Optional[str] = Field(
-        default=None,
-        description="Preferred model for response generation"
     )
     include_sources: bool = Field(
         default=True,
@@ -66,23 +78,12 @@ class ChatRequest(BaseModel):
         description="Maximum number of sources to include"
     )
     
-    @field_validator('message')
+    @field_validator('messages')
     @classmethod
-    def validate_message(cls, v):
-        """Validate that message is not just whitespace."""
-        if not v.strip():
-            raise ValueError('Message cannot be empty or just whitespace')
-        return v.strip()
-    
-    @field_validator('model_preference')
-    @classmethod
-    def validate_model_preference(cls, v):
-        """Validate model preference against allowed values."""
-        if v is not None:
-            allowed_models = ['vllm', 'ollama', 'gemini']
-            if v.lower() not in allowed_models:
-                raise ValueError(f'Model preference must be one of: {allowed_models}')
-            return v.lower()
+    def validate_messages(cls, v):
+        """Validate that messages are not empty."""
+        if not v:
+            raise ValueError('Messages cannot be empty')
         return v
 
 

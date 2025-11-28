@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import Toolbar from '$lib/components/Toolbar.svelte';
 	import { settings, settingsActions, type Provider } from '$lib/stores/settings';
 
@@ -6,14 +7,57 @@
 	let showApiKey = false;
 	let saveMessage = '';
 	let saveTimeout: number;
+	let modelsByProvider: Record<string, string[]> = {};
+
+	async function fetchModels(provider: Provider) {
+		if (provider.type !== 'openai') return;
+		const { url, apiKey } = provider.config;
+		if (!url) return;
+
+		try {
+			const response = await fetch(`/api/v1/models/fetch`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify({ url, api_key: apiKey })
+			});
+			if (response.ok) {
+				const data = await response.json();
+				modelsByProvider[provider.id] = data.data.map((model: any) => model.id);
+			} else {
+				console.error('Failed to fetch models:', response.statusText);
+				modelsByProvider[provider.id] = [];
+			}
+		} catch (error) {
+			console.error('Error fetching models:', error);
+			modelsByProvider[provider.id] = [];
+		}
+	}
+
+	onMount(() => {
+		$settings.providers.forEach(p => {
+			if (p.enabled) {
+				fetchModels(p);
+			}
+		});
+	});
 
 	function toggleProvider(providerId: string) {
 		settingsActions.toggleProvider(providerId);
+		const provider = $settings.providers.find(p => p.id === providerId);
+		if (provider?.enabled) {
+			fetchModels(provider);
+		}
 		showSaveMessage('Provider updated successfully!');
 	}
 
 	function updateProviderConfig(providerId: string, field: string, value: string) {
 		settingsActions.updateProviderConfig(providerId, field, value);
+		const provider = $settings.providers.find(p => p.id === providerId);
+		if (provider && (field === 'url' || field === 'apiKey')) {
+			fetchModels(provider);
+		}
 		showSaveMessage('Configuration updated!');
 	}
 
@@ -150,6 +194,43 @@
 												class="w-full px-4 py-3 bg-gray-800 bg-opacity-50 border border-gray-600 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300"
 											/>
 										</div>
+									{:else if provider.type === 'openai'}
+										<div>
+											<label class="block text-sm font-medium text-gray-300 mb-2">API URL</label>
+											<input
+												type="url"
+												bind:value={provider.config.url}
+												onchange={(e) => updateProviderConfig(provider.id, 'url', e.target.value)}
+												placeholder="http://localhost:1234/v1"
+												class="w-full px-4 py-3 bg-gray-800 bg-opacity-50 border border-gray-600 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300"
+											/>
+										</div>
+										<div>
+											<label class="block text-sm font-medium text-gray-300 mb-2">API Key</label>
+											<div class="relative">
+												<input
+													type={showApiKey ? 'text' : 'password'}
+													bind:value={provider.config.apiKey}
+													onchange={(e) => updateProviderConfig(provider.id, 'apiKey', e.target.value)}
+													placeholder="Enter your API key"
+													class="w-full px-4 py-3 pr-12 bg-gray-800 bg-opacity-50 border border-gray-600 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300"
+												/>
+												<button
+													onclick={() => showApiKey = !showApiKey}
+													class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white transition-colors duration-300"
+												>
+													{#if showApiKey}
+														<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+															<path d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm4.31-.78l3.15 3.15.02-.16c0-1.66-1.34-3-3-3l-.17.01z"/>
+														</svg>
+													{:else}
+														<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+															<path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+														</svg>
+													{/if}
+												</button>
+											</div>
+										</div>
 									{:else if provider.type === 'gemini'}
 										<div>
 											<label class="block text-sm font-medium text-gray-300 mb-2">API Key</label>
@@ -181,14 +262,30 @@
 
 									<div>
 										<label class="block text-sm font-medium text-gray-300 mb-2">Model</label>
-										<input
-											type="text"
-											bind:value={provider.config.model}
-											onchange={(e) => updateProviderConfig(provider.id, 'model', e.target.value)}
-											placeholder="Enter model name"
-											class="w-full px-4 py-3 bg-gray-800 bg-opacity-50 border border-gray-600 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300"
-											readonly={provider.type === 'llvm'}
-										/>
+										{#if provider.type === 'openai'}
+											<input
+												type="text"
+												list="models-{provider.id}"
+												bind:value={provider.config.model}
+												onchange={(e) => updateProviderConfig(provider.id, 'model', e.target.value)}
+												placeholder="Select or enter model name"
+												class="w-full px-4 py-3 bg-gray-800 bg-opacity-50 border border-gray-600 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300"
+											/>
+											<datalist id="models-{provider.id}">
+												{#each modelsByProvider[provider.id] || [] as model}
+													<option value={model}>{model}</option>
+												{/each}
+											</datalist>
+										{:else}
+											<input
+												type="text"
+												bind:value={provider.config.model}
+												onchange={(e) => updateProviderConfig(provider.id, 'model', e.target.value)}
+												placeholder="Enter model name"
+												class="w-full px-4 py-3 bg-gray-800 bg-opacity-50 border border-gray-600 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300"
+												readonly={provider.type === 'llvm'}
+											/>
+										{/if}
 									</div>
 								</div>
 							{/if}

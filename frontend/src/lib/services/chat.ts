@@ -153,6 +153,8 @@ class ChatService {
 		}
 
 		switch (activeProvider.type) {
+			case 'openai':
+				return this.sendToBackend(activeProvider, messages);
 			case 'ollama':
 				return this.sendToOllama(activeProvider, messages);
 			case 'gemini':

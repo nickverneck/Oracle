@@ -8,7 +8,6 @@ from typing import Any, Dict, List, Optional, Tuple
 import chromadb
 from chromadb.config import Settings as ChromaSettings
 from chromadb.utils import embedding_functions
-from sentence_transformers import SentenceTransformer
 
 from oracle.models.errors import OracleException, ErrorCode
 
@@ -51,9 +50,6 @@ class ChromaDBClient:
         self.embedding_function = embedding_functions.SentenceTransformerEmbeddingFunction(
             model_name=embedding_model
         )
-        
-        # Cache for sentence transformer model (for chunking operations)
-        self._sentence_transformer: Optional[SentenceTransformer] = None
         
         logger.info(
             "Initialized ChromaDB client",

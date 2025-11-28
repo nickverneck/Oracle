@@ -14,6 +14,10 @@ graph TB
         FASTAPI[FastAPI Backend]
     end
     
+    subgraph "Processing Layer"
+        INGESTION[Ingestion Microservice]
+    end
+    
     subgraph "Model Serving Layer"
         VLLM[vLLM + CUDA]
         OLLAMA[Ollama]
@@ -31,17 +35,20 @@ graph TB
     
     UI --> FASTAPI
     API_CLIENT --> FASTAPI
+    FASTAPI --> INGESTION
     FASTAPI --> VLLM
     FASTAPI --> OLLAMA
     FASTAPI --> GEMINI
     FASTAPI --> NEO4J
     FASTAPI --> CHROMADB
+    INGESTION --> VOLUMES
     NEO4J --> VOLUMES
     CHROMADB --> VOLUMES
 ```
 
 - **Backend**: FastAPI with UV package management
 - **Frontend**: SvelteKit 5 with TypeScript
+- **Document Processing**: Dedicated Ingestion Microservice with PyTorch/EasyOCR
 - **Model Serving**: vLLM with CUDA support (primary), Ollama and Google Gemini (fallbacks)
 - **Knowledge Graph**: Neo4j for structured relationship data
 - **Vector Database**: ChromaDB for semantic similarity search

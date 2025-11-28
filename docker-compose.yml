@@ -3,6 +3,8 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      args:
+        - CUDA_ENABLED=${CUDA_ENABLED:-false}
     container_name: oracle-backend
     ports:
       - "${BACKEND_PORT:-8080}:8080"
@@ -16,10 +18,13 @@ services:
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://localhost:11434}
       - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - INGESTION_SERVICE_URL=http://oracle-ingestion-service:8081
     depends_on:
       oracle-neo4j:
         condition: service_healthy
       oracle-chromadb:
+        condition: service_started
+      oracle-ingestion-service:
         condition: service_started
     networks:
       - oracle-network
@@ -33,16 +38,40 @@ services:
       retries: 3
       start_period: 40s
 
+  oracle-ingestion-service:
+    build:
+      context: ./backend/ingestion-service
+      dockerfile: Dockerfile
+      args:
+        - CUDA_ENABLED=${CUDA_ENABLED:-false}
+        - MPS_ENABLED=${MPS_ENABLED:-false}
+    container_name: oracle-ingestion-service
+    ports:
+      - "8081:8081"
+    environment:
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    networks:
+      - oracle-network
+    volumes:
+      - ingestion-models:/models
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
   oracle-frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: oracle-frontend
     ports:
-      - "${FRONTEND_PORT:-3000}:3000"
+      - "${FRONTEND_PORT:-5173}:5173"
     environment:
       - BACKEND_URL=http://oracle-backend:8080
       - VITE_BACKEND_URL=http://oracle-backend:8080
+      - VITE_INGESTION_URL=http://localhost:8081
       - NODE_ENV=${NODE_ENV:-production}
     depends_on:
       oracle-backend:
@@ -52,6 +81,12 @@ services:
     volumes:
       - ./frontend:/app
       - frontend-node-modules:/app/node_modules
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/robots.txt"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   # oracle-vllm:
   #   image: vllm/vllm-openai:latest
@@ -149,3 +184,5 @@ volumes:
     name: oracle-backend-cache
   frontend-node-modules:
     name: oracle-frontend-node-modules
+  ingestion-models:
+    name: oracle-ingestion-models

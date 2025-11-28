@@ -8,6 +8,7 @@ from .base import BaseModelClient, ModelResponse
 from .vllm_client import VLLMClient
 from .ollama_client import OllamaClient
 from .gemini_client import GeminiClient
+from .openai_client import OpenAIClient
 from ..models.errors import ModelClientError
 
 logger = structlog.get_logger(__name__)

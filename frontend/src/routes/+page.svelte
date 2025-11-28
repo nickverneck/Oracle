@@ -133,7 +133,7 @@
 		<div class="max-w-4xl mx-auto">
 			<div 
 				bind:this={chatContainer}
-				class="h-[calc(100vh-240px)] md:h-[calc(100vh-200px)] overflow-y-auto scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent pr-2 pt-4"
+				class="h-[calc(89vh-240px)] md:h-[calc(89vh-200px)] overflow-y-auto scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent pr-2 pt-4"
 			>
 				{#each messages as message (message.id)}
 					<ChatMessage {message} />
